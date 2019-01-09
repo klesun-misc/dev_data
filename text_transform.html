@@ -14,6 +14,14 @@ Enter your text here:<br/>
 
     var $$ = s => [...document.querySelectorAll(s)];
 
+    let hashData = {};
+   	let hashStr = window.location.hash.substr(1);
+   	for (let pair of hashStr.split('&')) {
+   		let [key, value] = pair.split('=');
+   		hashData[key] = value;
+   	}
+   	window.onhashchange = () => window.location.reload();
+
     const sqlDescribeToPhpArray = function(describeOutput)
     {
 		var regexTuples = [
@@ -574,6 +582,32 @@ Enter your text here:<br/>
         "        ')?',",
     ].join('\n');
 
+    let varExportExample = [
+        "[",
+        "    'destinations' => [",
+        "        [",
+        "            'departureDate' => '2018-11-12',",
+        "            'departure' => 'JFK',",
+        "            'destination' => 'LAX',",
+        "            'cabinClass' => 'economy',",
+        "        ],",
+        "        [",
+        "            'departureDate' => '2018-12-08',",
+        "            'departure' => 'LAX',",
+        "            'destination' => 'JFK',",
+        "            'cabinClass' => 'economy',",
+        "        ],",
+        "    ],",
+        "    'adult' => 1,",
+        "    'child' => 2,",
+        "    'infant' => 0,",
+        "    'airlinePreferences' => [],",
+        "    'stops' => 1,",
+        "    'layoverTime' => 24,",
+        "]",
+        "",
+    ].join('\n');
+
     let parseJs = (jsCode) => {
         try {
             return eval('(' + jsCode + ')');
@@ -630,106 +664,17 @@ Enter your text here:<br/>
     };
 
 	let buttons = [
-        // not needed anymore
-		//~ {
-			//~ name: 'SQL DESCRIBE -> PHP array',
-            //~ implementation: sqlDescribeToPhpArray,
-            //~ sample: someSqlDescribe,
-		//~ },
         {
-            name: 'Text -> implode PHP_EOL (")',
-            implementation: textToWrappedLinesDoubleQuoted,
-            sample: someMultilineText,
-            language: 'ace/mode/php',
-        },
-        {
-            name: "Text -> implode PHP_EOL (')",
-            implementation: textToWrappedLinesSingleQuoted,
-            sample: someMultilineText,
-            language: 'ace/mode/php',
-        },
-        {
-            name: '<- Undo',
-            implementation: wrappingCode =>
-                    applyToEachLine(/^( *)'(.*?)'[,\.;].*$/, '$1$2', wrappingCode),
-            sample: someWrappingMultiLineCode,
-            language: 'ace/mode/plain_text',
-        },
-        {
-            name: 'SQL select -> JSON',
-            implementation: sqlSelectToJson,
-            sample: someSqlSelect,
+            name: 'var_export to json',
+            implementation: phpCode => Tls.jsExport(VarExportParser.parse(phpCode), null, getInlineLimit()),
+            sample: varExportExample,
             language: 'ace/mode/javascript',
         },
         {
-            name: 'SQL \\G to var_export',
-            implementation: text => Tls.varExport(parseSqlSelectG(text), null, '    ', getInlineLimit()),
-            sample: someSqlSelectG,
-            language: 'ace/mode/php',
-        },
-        {
-            name: 'Regex Diamonds To Format Adapter',
-            implementation: regexDiamondsToFormatAdapter,
-            sample: someRegexDiamonds,
-            language: 'ace/mode/php',
-        },
-        {
-            name: 'Regex Diamonds To OOP Format Adapter',
-            implementation: (source) => applyToEachLine(
-                /^\s*'(.+)' => (.+),\s*$/,
-                '\$seat->$1 = $2;',
-                source
-            ),
-            sample: someRegexDiamonds,
-            language: 'ace/mode/php',
-        },
-        {
-            name: 'Itinerary to cmd',
-            implementation: source => itineraryToCmd(source),
-            sample: [
-                ' 1 DL4637V 14SEP SEAPDX SS1   715P  807P *         TH   E  1',
-                '         OPERATED BY SKYWEST DBA DELTA CONNECTION',
-                ' 2 DL  69V 15SEP PDXNRT SS1  1202P  300P+*      FR/SA   E  1',
-                ' 3 DL 275V 16SEP NRTMNL SS1   450P  855P *         SA   E  1',
-                ' 4 DL 276V 25SEP MNLNRT SS1   810A  155P *         MO   E  2',
-                ' 5 DL 578V 25SEP NRTHNL SS1   920P 1000A *         MO   E  2',
-                ' 6 DL2218V 25SEP HNLSEA SS1   840P  530A+*      MO/TU   E  2',
-            ].join('\n'),
-            language: 'ace/mode/plain_text',
-        },
-        // not needed for now
-        //~ {
-            //~ name: 'Remove Line Breaks',
-            //~ implementation: text => text.replace(/\n/g, ''),
-            //~ sample: 'aaa\nbbbb\ncccc',
-        //~ },
-        {
-            name: 'jsExport',
-            implementation: jsCode => Tls.jsExport(parseJs(jsCode), null, getInlineLimit()),
+            name: 'json to var_export',
+            implementation: jsCode => Tls.varExport(parseJs(jsCode), null, '    ', getInlineLimit()),
             sample: '["aaa", "bbb", "ccc"].join("\\n")',
-            language: 'ace/mode/javascript',
-        },
-        {
-            name: 'Put to "currentData" variable',
-            implementation: jsCode => {
-                window.currentData = parseJs(jsCode);
-                return jsCode;
-            },
-            sample: '{a:5,b:6}',
-            language: 'ace/mode/javascript',
-        },
-        {
-            name: 'Put to "currentData" variable from clipboard',
-            implementation: () => {
-                navigator.clipboard.readText()
-                    .then(text => {
-                        window.currentData = text;
-                    })
-                    .catch(err => {
-                        console.error('Failed to read clipboard contents: ', err);
-                    });
-            },
-            language: 'ace/mode/javascript',
+            language: 'ace/mode/php',
         },
         {
             name: 'Prettify XML',
@@ -737,54 +682,13 @@ Enter your text here:<br/>
             sample: '["aaa", "bbb", "ccc"].join("\\n")',
             language: 'ace/mode/html',
         },
-        {
-            name: 'SQL tabs to var_export',
-            implementation: csvTabs => Tls.varExport(parseCsvTabs(csvTabs), null, '    ', getInlineLimit()),
-            sample: '',
-            language: 'ace/mode/php',
-        },
-        {
-            name: 'Eldar',
-            implementation: eldarText => eldarDocToPhpunit(eldarText),
-            sample: someEldar,
-            language: 'ace/mode/php',
-        },
-        {
-            name: 'Eldar To Patterns',
-            implementation: eldarText => eldarDocToPatterns(eldarText),
-            sample: someEldar,
-            language: 'ace/mode/javascript',
-        },
-        {
-            name: 'To CSV',
-            implementation: jsonText => jsonToCsv(jsonText),
-            sample: '',
-            language: 'ace/mode/javascript',
-        },
-        {
-            name: 'To PHP CSV',
-            implementation: jsonText => jsonToCsv(jsonText, true),
-            sample: '',
-            language: 'ace/mode/php',
-        },
-        {
-            name: 'varLocation to tree',
-            implementation: text => varLocationToTree(text),
-            sample: '',
-            language: 'ace/mode/php',
-        },
-        {
-            name: 'fluent logs to calledCommands',
-            implementation: text => fluentLogsToCalledCommands(text),
-            sample: '',
-            language: 'ace/mode/php',
-        },
-        {
-            name: 'fluent logs XML to calledCommands',
-            implementation: text => fluentLogsXmlToCalledCommands(text),
-            sample: '',
-            language: 'ace/mode/php',
-        },
+
+        // not needed anymore
+		//~ {
+			//~ name: 'SQL DESCRIBE -> PHP array',
+            //~ implementation: sqlDescribeToPhpArray,
+            //~ sample: someSqlDescribe,
+		//~ },
         {
             name: 'http query to json',
             implementation: query => {
@@ -873,11 +777,148 @@ Enter your text here:<br/>
             language: 'ace/mode/javascript',
         },
         {
-            name: 'json to var_export',
-            implementation: jsCode => Tls.varExport(parseJs(jsCode), null, '    ', getInlineLimit()),
-            sample: '["aaa", "bbb", "ccc"].join("\\n")',
+            name: 'SQL select -> JSON',
+            implementation: sqlSelectToJson,
+            sample: someSqlSelect,
+            language: 'ace/mode/javascript',
+        },
+        {
+            name: 'SQL \\G to var_export',
+            implementation: text => Tls.varExport(parseSqlSelectG(text), null, '    ', getInlineLimit()),
+            sample: someSqlSelectG,
             language: 'ace/mode/php',
         },
+        {
+            name: 'SQL tabs to var_export',
+            implementation: csvTabs => Tls.varExport(parseCsvTabs(csvTabs), null, '    ', getInlineLimit()),
+            sample: '',
+            language: 'ace/mode/php',
+        },
+        {
+            name: 'To CSV',
+            implementation: jsonText => jsonToCsv(jsonText),
+            sample: '',
+            language: 'ace/mode/javascript',
+        },
+        {
+            name: 'To PHP CSV',
+            implementation: jsonText => jsonToCsv(jsonText, true),
+            sample: '',
+            language: 'ace/mode/php',
+        },
+        {
+            name: 'varLocation to tree',
+            implementation: text => varLocationToTree(text),
+            sample: '',
+            language: 'ace/mode/php',
+        },
+        {
+            name: 'json to javascript (pretty multi-line strings)',
+            implementation: jsCode => Tls.jsExport(parseJs(jsCode), null, getInlineLimit()),
+            sample: '["aaa", "bbb", "ccc"].join("\\n")',
+            language: 'ace/mode/javascript',
+        },
+        {
+            name: 'Text -> implode PHP_EOL (")',
+            implementation: textToWrappedLinesDoubleQuoted,
+            sample: someMultilineText,
+            language: 'ace/mode/php',
+        },
+        {
+            name: "Text -> implode PHP_EOL (')",
+            implementation: textToWrappedLinesSingleQuoted,
+            sample: someMultilineText,
+            language: 'ace/mode/php',
+        },
+        {
+            name: '<- Undo',
+            implementation: wrappingCode =>
+                    applyToEachLine(/^( *)'(.*?)'[,\.;].*$/, '$1$2', wrappingCode),
+            sample: someWrappingMultiLineCode,
+            language: 'ace/mode/plain_text',
+        },
+        //{
+        //    name: 'Regex Diamonds To Format Adapter',
+        //    implementation: regexDiamondsToFormatAdapter,
+        //    sample: someRegexDiamonds,
+        //    language: 'ace/mode/php',
+        //},
+        //{
+        //    name: 'Regex Diamonds To OOP Format Adapter',
+        //    implementation: (source) => applyToEachLine(
+        //        /^\s*'(.+)' => (.+),\s*$/,
+        //        '\$seat->$1 = $2;',
+        //        source
+        //    ),
+        //    sample: someRegexDiamonds,
+        //    language: 'ace/mode/php',
+        //},
+        //{
+        //    name: 'Itinerary to cmd',
+        //    implementation: source => itineraryToCmd(source),
+        //    sample: [
+        //        ' 1 DL4637V 14SEP SEAPDX SS1   715P  807P *         TH   E  1',
+        //        '         OPERATED BY SKYWEST DBA DELTA CONNECTION',
+        //        ' 2 DL  69V 15SEP PDXNRT SS1  1202P  300P+*      FR/SA   E  1',
+        //        ' 3 DL 275V 16SEP NRTMNL SS1   450P  855P *         SA   E  1',
+        //        ' 4 DL 276V 25SEP MNLNRT SS1   810A  155P *         MO   E  2',
+        //        ' 5 DL 578V 25SEP NRTHNL SS1   920P 1000A *         MO   E  2',
+        //        ' 6 DL2218V 25SEP HNLSEA SS1   840P  530A+*      MO/TU   E  2',
+        //    ].join('\n'),
+        //    language: 'ace/mode/plain_text',
+        //},
+        // not needed for now
+        //~ {
+            //~ name: 'Remove Line Breaks',
+            //~ implementation: text => text.replace(/\n/g, ''),
+            //~ sample: 'aaa\nbbbb\ncccc',
+        //~ },
+        {
+            name: 'Put to "currentData" variable',
+            implementation: jsCode => {
+                window.currentData = parseJs(jsCode);
+                return jsCode;
+            },
+            sample: '{a:5,b:6}',
+            language: 'ace/mode/javascript',
+        },
+        {
+            name: 'Put to "currentData" variable from clipboard',
+            implementation: () => {
+                navigator.clipboard.readText()
+                    .then(text => {
+                        window.currentData = text;
+                    })
+                    .catch(err => {
+                        console.error('Failed to read clipboard contents: ', err);
+                    });
+            },
+            language: 'ace/mode/javascript',
+        },
+        //{
+        //    name: 'Eldar',
+        //    implementation: eldarText => eldarDocToPhpunit(eldarText),
+        //    sample: someEldar,
+        //    language: 'ace/mode/php',
+        //},
+        //{
+        //    name: 'Eldar To Patterns',
+        //    implementation: eldarText => eldarDocToPatterns(eldarText),
+        //    sample: someEldar,
+        //    language: 'ace/mode/javascript',
+        //},
+        //{
+        //    name: 'fluent logs to calledCommands',
+        //    implementation: text => fluentLogsToCalledCommands(text),
+        //    sample: '',
+        //    language: 'ace/mode/php',
+        //},
+        //{
+        //    name: 'fluent logs XML to calledCommands',
+        //    implementation: text => fluentLogsXmlToCalledCommands(text),
+        //    sample: '',
+        //    language: 'ace/mode/php',
+        //},
 	];
 
     let editor = ace.edit('describeInput');
@@ -921,6 +962,9 @@ Enter your text here:<br/>
     };
     buttonsCont.appendChild(xmlToArrBtnEl);
 
+    if (hashData.dataset === 'varExportExample') {
+    	editor.setValue(varExportExample);
+    }
 </script>
 </body>
 
