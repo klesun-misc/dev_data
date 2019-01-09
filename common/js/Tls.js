@@ -57,15 +57,11 @@ var Tls = function()
         }, performOnProgress)
     };
 
-    let urlRoot = window.location.hostname === false ? null
-        : window.location.hostname === 'dev_data.aklesuns.php7.dyninno.net' ? 'http://dev_data.aklesuns.php7.dyninno.net'
-        : window.location.hostname === 'localhost' ? 'http://localhost/unv/dev_data'
-        : window.location.hostname === '10.128.8.117' ? 'http://10.128.8.117/unv/dev_data'
-        : 'http://192.168.2.99:81/~aklesuns/dev_data';
+    let urlRoot = 'https://midiana.lv/entry/dev_data';
 
     let callExternal = function(funcName, funcParams, cb) {
         "use strict";
-        ajax(urlRoot + '/entry/common/php/service.php', 'POST', {
+        ajax(urlRoot + '/common/php/service.php', 'POST', {
             f: funcName,
             w: Tls.opt($$('select.working-copy')[0]).map(dom => dom.value).def('rbs-dev'),
             p: funcParams,
