@@ -1,0 +1,939 @@
+<head>
+    <script src="./common/js/Tls.js"></script>
+    <script src="./common/js/VarExportParser.js"></script>
+    <script src="./common/js/acejs/ace.js" type="text/javascript" charset="utf-8"></script>
+</head>
+
+<body>
+Enter your text here:<br/>
+<div id="describeInput"></div><br/>
+<div id="buttonsCont"></div>
+<label>var_export inline limit<input type="number" class="var-export-inline-limit" value="64"/></label>
+
+<script>
+
+    var $$ = s => [...document.querySelectorAll(s)];
+
+    const sqlDescribeToPhpArray = function(describeOutput)
+    {
+		var regexTuples = [
+            [
+                /\| ([A-z0-9_]*) *\| ([^ ]*).*/g,
+                "'$1' => $2,"
+            ], [
+                / => int\((11|10)\),/g,
+                ' => \\Library\\Model\\Normalization::int(),'
+            ], [
+                / => tinyint\(4\),/g,
+                ' => \\Library\\Model\\Normalization::int(),'
+            ], [
+                / => (tinyint\(1\)|int\(1\)),/g,
+                ' => \\Library\\Model\\Normalization::bool(),'
+            ], [
+                / => (varchar|char)\((\d+)\),/g,
+                ' => \\Library\\Model\\Normalization::string($2),'
+            ], [
+                / => varchar\((\d+)\),/g,
+                ' => \\Library\\Model\\Normalization::string($1),'
+            ], [
+                / => (text|longtext),/g,
+                ' => \\Library\\Model\\Normalization::string(),'
+            ], [
+                / => (datetime|timestamp|date),/g,
+                ' => \\Library\\Model\\Normalization::datetime(TRUE),'
+            ], [
+                / => decimal\((10|6|4),2\),/g,
+                ' => \\Library\\Model\\Normalization::float(),'
+            ], [
+                / => enum\(.*\),/g,
+                ' => \\Library\\Model\\Normalization::string(), // $1'
+            ]
+		];
+
+		var result = describeOutput;
+
+		regexTuples.forEach(t => {
+			var [pattern, to] = t;
+			console.log(result, pattern, to);
+			result = result.replace(pattern, to);
+			console.log(result);
+		});
+
+		return result;
+    };
+
+    const getRowValues = (rowText) =>
+        rowText.slice(1,-1).split('|').map(e => e.trim());
+
+    const sqlSelectToJson = function(sqlSelectText)
+    {
+        let lines = sqlSelectText.trimRight().split('\n');
+        let headers = getRowValues(lines[1]);
+        let rowLines = lines.slice(3);
+
+        let result = [];
+        for (let rowLine of rowLines) {
+            if (!rowLine.startsWith('+')) {
+                let values = getRowValues(rowLine);
+                let row = {};
+                for (let i = 0; i < headers.length; ++i) {
+                    row[headers[i]] = values[i];
+                }
+                result.push(row);
+            }
+        }
+
+        return JSON.stringify(result);
+    };
+
+    const getInlineLimit = () => $$('.var-export-inline-limit')[0].value;
+
+    const applyToEachLine = (regex, out, text) =>
+        text.split('\n').map(l => l.replace(regex, out)).join('\n');
+
+    const textToWrappedLinesDoubleQuoted = function(text)
+    {
+		return '' +
+			'implode(PHP_EOL, [\n' + text
+			.split('\n')
+//			.filter(l => l !== '')
+			// TODO: escape properly. for now i don't handle when string is already escaped
+			.map(l => l.replace(/\$/g, '\\$'))
+			.map(l => l.replace(/"/g, '\\"'))
+			.map(l => '    "' + l + '",')
+			.join('\n') +
+			'\n])';
+    };
+
+    const textToWrappedLinesSingleQuoted = function(text)
+    {
+        text = text.replace(/\n$/, '');
+		return '' +
+			'implode(PHP_EOL, [\n' + text
+			.split('\n')
+//			.filter(l => l !== '')
+			// TODO: escape properly. for now i don't handle when string is already escaped
+			.map(l => l.replace(/'/g, "\\'"))
+			.map(l => "    '" + l + "',")
+			.join('\n') +
+			'\n])';
+    };
+
+	const regexDiamondsToFormatAdapter = (codeRegexWithDiamonds) =>
+        codeRegexWithDiamonds
+			.split('\n')
+			.map(l => l.replace(/^ *\'.*\(\?P\<([a-zA-Z0-9_]+).*/, '\'$1\' => \$matches[\'$1\'],'))
+			.join('\n');
+
+	const itineraryToCmd = (dump) => {
+	    let apollo = dump.split('\n')
+            .map(line => line.match(/^\s*\d+\s+([A-Z0-9]{2})\s*(\d+)([A-Z])\s+(\d+[A-Z]{3})\s+([A-Z]{6})\s+([A-Z]{2})(\d+)\s+/))
+            .filter(a => a)
+            .map(matches => '0' + matches.slice(1).join(''))
+            .join('\n');
+	    let sabre = dump.split('\n')
+            .map(line => line.match(/^\s*\d+\s+([A-Z0-9]{2})\s*(\d+)([A-Z])\s+(\d+[A-Z]{3})\s+[A-Z]\s+([A-Z]{6})\s+([A-Z]{2})(\d+)\s+/))
+            .filter(a => a)
+            .map(matches => '0' + matches.slice(1).join(''))
+            .join('\n');
+	    return apollo || sabre;
+	    // let sabre = ;
+    };
+
+	const chunk = (list, l) => new Array(Math.ceil(list.length / l))
+        .fill().map((_,i) => list.slice(i * l, i * l + l));
+
+    let isEmptyPattern = pattern => ['DOES NOT EXIST', 'NON-TRANSLATABLE'].includes(pattern);
+
+	const parseEldarDoc = (eldarText) => {
+        let lines = eldarText.split('\n');
+        let formats = chunk(lines, 2).map(pair => {
+            let patterns = pair[0].split(/\t/);
+            let examples = pair[1].split(/\t/);
+            let descr = patterns.shift();
+            examples.shift(); // descr
+            return {
+                descr: descr,
+                gdses: ['apollo', 'sabre', 'amadeus', 'galileo']
+                    .map((gds, i) => 1 && {
+                        gds: gds,
+                        pattern: patterns[i],
+                        example: examples[i] || (isEmptyPattern(patterns[i]) ? patterns[i] : ''),
+                    }),
+            };
+        });
+
+        console.debug('eldar formats parsed', JSON.parse(JSON.stringify(formats)));
+        return formats;
+    } ;
+
+	/** the text you get if you Ctrl+C some cells in a Google Doc table */
+	const eldarDocToPhpunit = (eldarText) => {
+        let formats = parseEldarDoc(eldarText);
+
+	    // make a test case with Galileo and one other random GDS
+        let testCases = formats.map(format => {
+            let gdses = format.gdses;
+            let mainGds = gdses.shift();
+            return '// ' + format.descr + '\n' + gdses
+                .filter(g => !isEmptyPattern(g.pattern)).map(another => {
+                    let values = mainGds.example && another.example
+                        ? [another.gds, mainGds.gds, another.example, mainGds.example]
+                        : [another.gds, mainGds.gds, another.pattern, mainGds.pattern];
+                    return '[' + values.map(v => '\'' + v + '\'').join(', ') + '],\n';
+                }).join('');
+        });
+        return testCases.join('');
+    };
+
+	const eldarDocToPatterns = (eldarText) => {
+        let formats = parseEldarDoc(eldarText);
+        return formats.map(format => '// ' + format.descr + '\n[\n' + format.gdses.map(gds => {
+            return '    \'' + gds.gds + '\' => \'' + gds.pattern + '\',\n';
+        }).join('') + '],\n').join('');
+    };
+
+    /** accidentally wrote it two times, yikes */
+    const parseSqlGRow2 = function(selectG)
+    {
+        let lines = selectG.split('\n');
+        let cols = [];
+        for (let line of lines) {
+            let matched = line.match(/^(\s*)([A-Za-z][A-Za-z0-9_]*): (.*)$/);
+            if (matched) {
+                let [_, space, colName, value] = matched;
+                let prevCol = cols.slice(-1)[0] || null;
+                let width = space.length + colName.length;
+                if (!prevCol || prevCol.width === width) {
+                    cols.push({
+                        width: width,
+                        name: colName,
+                        value: value,
+                    })
+                } else if (cols.length > 0) {
+                    cols[cols.length - 1].value += '\n' + line;
+                }
+            } else if (cols.length > 0) {
+                cols[cols.length - 1].value += '\n' + line;
+            }
+        }
+        let row = {};
+        for (let col of cols) {
+            row[col.name] = col.value;
+        }
+        return Object.keys(row).length > 0 ? row : selectG;
+    };
+
+	const parseSqlSelectG = (selectG) => {
+
+	    let rowBlocks = selectG.split(/(\n|^)\*{10,} \d+\. row \*{10,}\n/);
+	    return rowBlocks.filter(a => a.trim()).map(parseSqlGRow2);
+    };
+
+	const parseCsvTabs = (dump) => {
+        let lines = dump.split('\n');
+        let headers = lines.shift().split('\t');
+        let result = lines.filter(l => l).map(line => {
+            let row = {};
+            let values = line.split('\t').map(v => v.replace(/\\n/g, '\n'));
+            for (let i = 0; i < headers.length; ++i) {
+                row[headers[i]] = values[i];
+            }
+            return row;
+        });
+        console.log(result);
+        return result;
+    };
+
+    const pad = (n, width, z, right = false) => {
+        z = z || '0';
+        n = n + '';
+        let space = new Array(width - n.length + 1).join(z);
+        return n.length >= width ? n : right ? space + n : n + space;
+    };
+
+	const jsonToCsv = (jsonText, phpFormat = false) => {
+	    let rows = eval(jsonText);
+	    let valueBundles = [];
+	    let quote = phpFormat
+            ? (val) => Tls.varExport(val, '', '')
+            : (val) => JSON.stringify(val);
+	    let keys = [...new Set(rows.flatMap(r => Object.keys(r)))];
+        valueBundles.push(keys.map(v => quote(v)));
+        valueBundles = valueBundles.concat(rows.map(row => keys.map(k => row[k] === undefined ? null : row[k]).map(v => quote(v))));
+
+        let colNumToMinLen = [];
+        for (let values of valueBundles) {
+            for (let i = 0; i < values.length; ++i) {
+                colNumToMinLen[i] = colNumToMinLen[i] || 0;
+                colNumToMinLen[i] = Math.max(colNumToMinLen[i], values[i].length);
+            }
+        }
+        for (let values of valueBundles) {
+            for (let i = 0; i < values.length; ++i) {
+                let right = (values[i] + '').match(/^\d+|'\d+'$/);
+                values[i] = pad(values[i], colNumToMinLen[i], ' ', right);
+            }
+        }
+        let csv = valueBundles
+            .map(vals => vals.join(' , '))
+            .map(line => phpFormat ? '    [' + line + '],' : line)
+            .join('\n');
+        csv = !phpFormat ? csv : 'ArrayUtil::makeTableRows([\n' + csv + '\n])';
+        return csv;
+    };
+
+	const varLocationToTree = (varLocationText) => {
+        varLocationText = varLocationText.trim();
+        varLocationText = varLocationText.endsWith(',')
+            ? '[' + varLocationText + ']' : varLocationText;
+        let entries = eval(varLocationText);
+        let root = {};
+        for (let entry of entries) {
+            let [keys, value] = entry;
+            let lastKey = keys.pop();
+            if (lastKey === null) {
+                root = value;
+            } else {
+                let node = root;
+                for (let key of keys) {
+                    node[key] = node[key] || {};
+                    node = node[key];
+                }
+                node[lastKey] = value;
+            }
+        }
+        return Tls.jsExport(root);
+    };
+
+	const fluentLogsToCalledCommands = (inputText) => {
+	    let logs = inputText.split('\n').map(t => JSON.parse(t));
+        let cmdRegex = /^(Apollo|Sabre|Amadeus|Galileo)\s+result:\s*\((.*)\)\s*$/;
+        let calledCommands = logs
+        	.filter(l => l.msg.match(cmdRegex))
+        	.map(l => {
+        		let gds = l.msg.match(cmdRegex)[1];
+        		let cmd = l.msg.match(cmdRegex)[2];
+        		let output = l.obj;
+        		if (['Apollo', 'Galileo'].includes(gds) &&
+        			!output.endsWith('><')
+        		) {
+        			output += '><';
+        		}
+        		return {
+        			cmd: cmd,
+        			output: output,
+        		};
+        	});
+        return Tls.varExport(calledCommands);
+    };
+
+	const fluentLogsXmlToCalledCommands = (inputText) => {
+	    let logs = inputText.split('\n').map(t => JSON.parse(t));
+        let cmdRegex = /^Sending\.\s+(Travelport|Amadeus|Sabre)\s+SOAP\s+request\s*:\s*\(.*(?:\s+[A-Z0-9]{9})?, (.*)\)\s*$/;
+        let outRegex = /^Received\s+(Travelport|Amadeus|Sabre)\s+SOAP\s+response\s*:\s*\((.*)\)\s*$/;
+        let cmd = null;
+        let calledCommands = [];
+        for (let log of logs) {
+            let cmdMatch = log.msg.match(cmdRegex);
+            let outMatch = log.msg.match(outRegex);
+            if (cmdMatch) {
+                cmd = cmdMatch[2];
+            } else if (cmd && outMatch) {
+                let gds = outMatch[1];
+                let funcName = outMatch[2];
+                if (['SubmitTerminalTransaction', 'Command_Cryptic', 'SabreCommandLLSRQ'].includes(funcName)) {
+                    let output =
+                        gds === 'Travelport' ? log.obj.SubmitTerminalTransactionResult :
+                        gds === 'Amadeus' ? log.obj.longTextString.textStringDetails :
+                        gds === 'Sabre' ? log.obj.Response :
+                        'UNSUPPORTED GDS - ' + gds;
+                    calledCommands.push({cmd: cmd, output: output});
+                    cmd = null;
+                }
+            } else {
+                /** @debug */
+                console.log('Unmatched: ' + log.msg, log.obj);
+            }
+        }
+        return Tls.varExport(calledCommands);
+    };
+
+    var someSqlDescribe = [
+        '| updated_dt  | datetime     | YES  |     | NULL    |       |',
+        '| id          | int(11)      | NO   | PRI | NULL    |       |',
+        '| login       | varchar(250) | YES  |     | NULL    |       |',
+        '| name        | varchar(250) | YES  |     | NULL    |       |',
+        '| fp_initials | char(2)      | YES  |     | NULL    |       |',
+        '| email       | varchar(250) | YES  |     | NULL    |       |',
+        '| email_lf    | varchar(250) | YES  |     | NULL    |       |',
+        '| team_id     | int(11)      | YES  |     | NULL    |       |',
+        '| is_active   | tinyint(1)   | YES  |     | NULL    |       |',
+        '| email_uk    | varchar(250) | YES  |     | NULL    |       |',
+    ].join("\n");
+
+    var someMultilineText = [
+        '     *****  AIR  HISTORY  *****',
+        'XS UA 126 T20SEP IADDUB SS/HK2  1020P 1025A *',
+        'XS LH 416 L21JUN FRAIAD HK/HX2  1045A  125P *',
+        'XS LH 595 L20JUN PHCFRA HK/HX2   800P  535A *',
+        'RCVD-VERONICA/ZDYB6A  -CR- QSB/2CV4/1V AG 6A 04JUN1719Z',
+        'SC LH 416 L21JUN FRAIAD HK/HX2  1045A  125P *',
+        'SC LH 595 L20JUN PHCFRA HK/HX2   800P  535A *',
+        'RCVD-040004//17CF0584/ NO ID  -CR- MUC/2CV4/UA RM 1A 04JUN0004Z',
+        'HS UA 126 T20SEP IADDUB SS/HK2  1020P 1025A *',
+        'HS LH 416 L21JUN FRAIAD SS/HK2  1045A  125P *       1',
+        'HS LH 595 L20JUN PHCFRA SS/HK2   800P  535A *       1',
+        'RCVD-VERONICA/ZDYB6A  -CR- QSB/2CV4/1V AG 6A 02JUN1632Z',
+    ].join('\n');
+
+    var someSqlSelect = [
+        '+---------------------+------+------------------+-------------------------------------+-------------+----------------------------+----------+---------+-----------+------------------------------------+',
+        '| updated_dt          | id   | login            | name                                | fp_initials | email                      | email_lf | team_id | is_active | email_uk                           |',
+        '+---------------------+------+------------------+-------------------------------------+-------------+----------------------------+----------+---------+-----------+------------------------------------+',
+        '| 2016-08-25 15:56:49 | 7800 | Fredrick Vitelli | Janis Cirulis                       |             | NULL                       |          |     144 |         1 | fredrick.vitelli@asaptickets.co.uk |',
+        '| 2016-08-25 15:56:49 | 7798 | Atticus Miller   | Janis Stipnieks                     |             | NULL                       |          |     144 |         0 | atticus.miller@asaptickets.co.uk   |',
+        '| 2016-08-25 15:56:49 | 7796 | Neal Kaffrey     | Andrejs Jekimochevs                 |             | NULL                       |          |     144 |         1 | neal.kaffrey@asaptickets.co.uk     |',
+        '| 2016-08-25 15:54:22 | 7794 | Kip              | Alexandr Kosenco                    | DR          | kip.k@asaptickets.com      |          |     138 |         1 |                                    |',
+        '| 2016-08-25 15:54:22 | 7792 | Laureen          | Monta Jonusa                        | 4S          | laureen.j@asaptickets.com  |          |      77 |         1 |                                    |',
+        '| 2016-08-25 15:56:19 | 7790 | Piper.old.3      | Jeena Prusakova                     | KI          | piper.p@asaptickets.com    |          |       4 |         0 |                                    |',
+        '| 2016-08-25 15:54:22 | 7788 | Ammelia          | Nithila K M                         | GF          | ammelia.m@asaptickets.com  |          |      74 |         1 |                                    |',
+        '| 2016-08-25 15:54:22 | 7786 | Xavier           | Davids Daniels Skrebs               | TS          | xavier.s@asaptickets.com   |          |      77 |         0 |                                    |',
+        '| 2016-08-25 15:54:22 | 7784 | Langston         | Patel Mohit Pareshkumar             | HK          | langston.p@asaptickets.com |          |      85 |         1 |                                    |',
+        '| 2016-08-25 15:54:21 | 7782 | Freya            | Gamila Abdelfattah Hussein A Hassan | 83          | freya.h@asaptickets.com    |          |     140 |         1 |                                    |',
+        '| 2016-08-25 15:54:21 | 7780 | Shiva            | Yashkumar Arvindbhai Donda          | YW          | shiva.d@asaptickets.com    |          |      85 |         1 |                                    |',
+        '| 2016-08-25 15:56:18 | 7778 | Morton           | Justin Skariah                      | NH          | morton.s@asaptickets.com   |          |       4 |         0 |                                    |',
+        '+---------------------+------+------------------+-------------------------------------+-------------+----------------------------+----------+---------+-----------+------------------------------------+',
+    ].join('\n');
+
+    let someEldar = [
+        'A{date]{from}{to}	1{date]{from}{to}	AD{date]{from}{to}	A{date]{from}{to}',
+        'A20SEPKIVRIX	120SEPKIVRIX	AD20SEPKIVRIX	A20SEPKIVRIX',
+        'A{date]{from}{to}{time}	1{date]{from}{to}{time}	AD{date]{from}{to}{time}	A{date]{from}{to}{time}',
+        'A20SEPKIVRIX6P	120SEPKIVRIX6P	AD20SEPJFKLOS6P	A20SEPKIVRIX6P',
+        'A{date]{from}{to}+{al1}.{al2}.{al3}	1{date]{from}{to}¥{al1}{al2}{al3}	AD{date}{from}{to}/A{al},{al}	A{date]{from}{to}/{al1}/{al2}/{al3}',
+        'A20SEPKIVRIX+9U.BT.SU	120SEPKIVRIX¥9UBTSU	AD20SEPKIVRIX/ABT,PS	A20SEPKIVRIX/9U/BT/SU',
+        'A{date]{from}{to}{time}{cCity}+{al}.{al2}.{al3}	1{date]{from}{to}{time}{cCity}¥{al1}{al2}{al3}	AD{date]{from}{to}{time}/X{ccity}/A{al1},{al2},{al3}	A{date]{from}{to}.{time}.{cCity}/{al}/{al2}/{al3}',
+        'A20SEPNYCSFO12AMSP+UA.AA.DL	120SEPNYCSFO12AMSP¥UAAADL	AD20SEPNYCSFO12A/XMSP/AUA,AA,DL	A20SEPNYCSFO.12A.MSP/UA/AA/DL',
+        'A{date]{from}{to}{time}{cCity1}.{cCity2}+{al}.{al2}.{al3}	1{date]{from}{to}{time}{cCity1}/{cCity2}¥{al1}{al2}{al3}	AD{date]{from}{to}{time}/X{ccity1}{ccity2}/A{al1},{al2},{al3}	A{date}{from}{to}.{time}.{ccity1}.{ccity2}/{al1}/{al2}',
+        'A20SEPNYCSFO12AMSP.CHI+UA.AA	120SEPNYCSFO12AMSP/CHI¥UAAADL	AD20SEPNYCSFO12A/XMSPCHI/AUA,AA,DL	A20SEPNYCSFO.12A.MSP.CHI/UA/AA',
+        'A{date]{from}{to}+{al}	1{date]{from}{to}¥{al}	AD{date]{from}{to}/A{al}	A{date]{from}{to}/{al}',
+        'A20SEPKIVRIX+BT	120SEPKIVRIX¥BT	AD20SEPKIVRIX/ABT	A20SEPKIVRIX/BT',
+        'A{date}{from}{to}/D+{al1}.{al2}	1{date}{from}{to}/N¥{al1}{al2}	AD{date}{from}{to}/FN/A{al1},{al2}	A{date}{from}{to}.D0/{al1}/{al2}',
+        'A20SEPKIVMOW/D+9U.SU	120SEPKIVMOW/N¥9USU	AD20SEPKIVMOW/FN/A9U,SU	A20SEPKIVMOW.D0/9U/SU',
+    ].join('\n');
+
+    let someSqlSelectG = [
+        '                            id: 12412984',
+        '                     trip_type: RT',
+        '                       airline: SN',
+        '                   alliance_id: 1',
+        '             departure_country: US',
+        '           destination_country: GH',
+        '                departure_city: NYC',
+        '              destination_city: ACC',
+        '             departure_airport: JFK',
+        '           destination_airport: ACC',
+        '                  departure_dt: 2018-11-06 18:15:00',
+        '              departure_dt_utc: 2018-11-06 23:15:00',
+        '                     return_dt: 2018-11-12 23:25:00',
+        '                 return_dt_utc: 2018-11-12 23:25:00',
+        '                          stay: 5',
+        '                 segment_count: 4',
+        '                    stop_count: 1',
+        '                   cabin_class: economy',
+        '                      currency: USD',
+        '                          fare: 269.00',
+        '                      fare_usd: 269.00',
+        '                         taxes: 231.11',
+        '                     taxes_usd: 231.11',
+        '                          fuel: 427.50',
+        '                      fuel_usd: NULL',
+        '                     net_price: 927.61',
+        '                 net_price_usd: 927.61',
+        '                    best_price: 877.61',
+        '              has_better_price: 1',
+        '             reprice_jobs_left: 1',
+        '               is_private_fare: 1',
+        '                  is_tour_fare: 0',
+        '                is_broken_fare: 0',
+        'is_priced_to_wrong_destination: 0',
+        '            ticket_designators: CN25',
+        '                      added_dt: 2018-04-16 12:49:56',
+        '           departure_region_id: 38',
+        '         destination_region_id: 34',
+        '                        source: GDS_DIRECT_PQ',
+        '                  parent_pq_id: NULL',
+        '                           gds: apollo',
+        '                           pcc: 2G55',
+        '                      agent_id: 22250',
+        '                  project_name: ITN',
+        '                       lead_id: 7953430',
+        '                      lead_url: https://cms.asaptickets.com/leadInfo?rId=7953430',
+        '                          hash: b3228c5cb64e7ad27ee72ac8420fab32',
+        '            should_recalculate: 0',
+        '                        log_id: pqt.5ad49bf6.457e1f5',
+        '         best_price_email_sent: 0',
+        '                itinerary_dump: NO NAMES',
+        ' 1 - PSGR P1 ADT                                   RULES DISPLAY',
+        'FARE COMPONENT  1    ADT MWZJNB KQ  TSRWTZ',
+        'FCL: TSRWTZ    TRF:  31 RULE: TZ11 BK:  T',
+        'PTC: ADT-ADULT              FTC: XOX-ONE WAY SPECIAL EXCURSION',
+        ' 1 SN 502L 06NOV JFKBRU SS1   615P  730A|*      TU/WE   E  3',
+        ' 2 SN 277L 07NOV BRUACC SS1  1110A  455P *         WE   E  3',
+        ' 3 SN 278L 12NOV ACCBRU SS1  1125P  700A|*      MO/TU   E  4',
+        ' 4 SN 501L 13NOV BRUJFK SS1  1035A  110P *         TU   E  4',
+        '',
+        '                  pricing_dump: >$BB-*2G55/:A',
+        '*FARE HAS A PLATING CARRIER RESTRICTION*',
+        'E-TKT REQUIRED',
+        'NO REBOOK REQUIRED',
+        '',
+        '** PRIVATE FARES SELECTED **  ',
+        '*PENALTY APPLIES*',
+        'LAST DATE TO PURCHASE TICKET: 19APR18',
+        '$BB-1 A16APR18     ',
+        'NYC SN X/BRU SN ACC 134.62LLLNC1N/CN25 SN X/BRU SN NYC',
+        '134.63LLLNC1N/CN25 NUC269.25END ROE1.0',
+        'FARE USD 269.00 TAX 5.60AY TAX 36.60US TAX 3.96XA TAX 4.50XF',
+        'TAX 7.00XY TAX 5.65YC TAX 47.80BE TAX 20.00G5 TAX 100.00GH TAX',
+        '410.00YQ TAX 17.50YR TOT USD 927.61  ',
+        'S1 NVB06NOV/NVA06NOV',
+        'S2 NVB07NOV/NVA07NOV',
+        'S3 NVB12NOV/NVA12NOV',
+        'S4 NVB13NOV/NVA13NOV',
+        'E REFTHRUAG/NONEND/NONRERTE/',
+        'E LH/UA/AC/OS/SN/LX ONLY',
+        'TOUR CODE: BT294UA        ',
+        'TICKETING AGENCY 2G55',
+        'DEFAULT PLATING CARRIER SN',
+        'US PFC: XF JFK4.5 ',
+        'BAGGAGE ALLOWANCE',
+        'ADT                                                         ',
+        ' SN NYCACC  2PC                                             ',
+        '   BAG 1 -  NO FEE       UPTO50LB/23KG AND UPTO62LI/158LCM',
+        '   BAG 2 -  NO FEE       UPTO50LB/23KG AND UPTO62LI/158LCM',
+        '   MYTRIPANDMORE.COM/BAGGAGEDETAILSSN.BAGG',
+        '                                                                 SN ACCNYC  2PC                                             ',
+        '   BAG 1 -  NO FEE       UPTO50LB/23KG AND UPTO62LI/158LCM',
+        '   BAG 2 -  NO FEE       UPTO50LB/23KG AND UPTO62LI/158LCM',
+        '   MYTRIPANDMORE.COM/BAGGAGEDETAILSSN.BAGG',
+        '                                                                CARRY ON ALLOWANCE',
+        ' SN NYCBRU  1PC                                             ',
+        '   BAG 1 -  NO FEE       UPTO26LB/12KG AND UPTO46LI/118LCM',
+        ' SN BRUACC  1PC                                             ',
+        '   BAG 1 -  NO FEE       UPTO26LB/12KG AND UPTO46LI/118LCM',
+        ' SN ACCBRU  1PC                                             ',
+        '   BAG 1 -  NO FEE       UPTO26LB/12KG AND UPTO46LI/118LCM',
+        ' SN BRUNYC  1PC                                             ',
+        '   BAG 1 -  NO FEE       UPTO26LB/12KG AND UPTO46LI/118LCM',
+        'BAGGAGE DISCOUNTS MAY APPLY BASED ON FREQUENT FLYER STATUS/',
+        'ONLINE CHECKIN/FORM OF PAYMENT/MILITARY/ETC.',
+        '',
+        '               best_price_diff: 50.00',
+        '                   pricing_cmd: $BB:A',
+        '                departure_date: 2018-11-06',
+        '          total_ow_travel_time: 1060',
+        '      total_return_travel_time: 1125',
+    ].join('\n');
+
+    let someRegexDiamonds = [
+        "'(?P<segmentNumber>[\s\d]{1,2})\s+'.",
+        "'(?P<airline>[A-Z\d]{2})\s*'.",
+        "'(?P<flightNumber>\d+)'.",
+        "'(?P<service>[A-Z]{1})\s+'.",
+        "'(?P<departureDay>\d{2})'.",
+        "'(?P<departureMonth>[A-Z]{3})\s+'.",
+        "'(?P<departureAirport>[A-Z]{3})'.",
+        "'(?P<destinationAirport>[A-Z]{3})'.",
+    ].join('\n');
+
+    let someWrappingMultiLineCode = [
+        "        '(?P<departureCity>[A-Z]{3}) ',",
+        "        '(',",
+        "            '(?P<airline>[A-Z0-9]{2}) ',",
+        "            '(?P<stopoverMark>X\/)?',",
+        "            '(?P<city>[A-Z]{3})',",
+        "            '(',",
+        "                '( ',",
+        "                    '(?P<fareLetter>[A-Z])( [A-Z]{6})',",
+        "                    '(?P<fareAmount>\d+(\.\d+)?)',",
+        "                ' ?)?',",
+        "                '',",
+        "            ')?',",
+        "        ')+',",
+        "        '(NUC(?P<nucAmount>)\d+(\.\d+)?)?',",
+        "        'END',",
+        "        '( ROE',",
+        "            '(?P<roeAmount>\d+(\.\d+)?) ?',",
+        "            '(',",
+        "                '(?P<taxCode>[A-Z0-9]{2})',",
+        "                '(?P<taxCity>[A-Z]{3})',",
+        "                '(?P<taxAmount>\d+(\.\d+)?)',",
+        "            ')*',",
+        "        ')?',",
+    ].join('\n');
+
+    let parseJs = (jsCode) => {
+        try {
+            return eval('(' + jsCode + ')');
+        } catch (syntaxError) {
+            let lines = jsCode.split('\n').filter(l => l.trim());
+            if (lines.length > 0) {
+                // try to parse as json object lines, our fluent logger
+                return lines.map(l => JSON.parse(l));
+            } else {
+                throw syntaxError;
+            }
+        }
+    };
+
+    let parsePrintRValue = (printRText) => {
+        printRText = printRText.trimLeft();
+        let arrayMatch = printRText.match(/^Array\s+\((.*)/s);
+        if (arrayMatch) {
+        	printRText = arrayMatch[1];
+            printRText = printRText.trimLeft();
+            let assocArr = {};
+            while (printRText.length > 0) {
+                let match = printRText.match(/^\[([a-zA-Z0-9_]+)] =>[ ]?/);
+                if (match) {
+                    let [full, key] = match;
+                    let parsed = parsePrintRValue(printRText.slice(full.length));
+                    assocArr[key] = parsed.value;
+                    printRText = parsed.textLeft.trimLeft();
+                } else if (printRText.startsWith(')')) {
+                    // end of array
+                    return {value: assocArr, textLeft: printRText.slice(1)};
+                } else {
+                    return {value: 'Unexpected start of array key - ' + printRText.slice(0, 200), textLeft: ''};
+                }
+            }
+            return {value: printRText, textLeft: ''};
+        } else {
+            let firstParen = printRText.indexOf(')');
+            let firstSquare = printRText.indexOf('[');
+            let terminators = [];
+            if (firstParen > -1) {
+                terminators.push(firstParen);
+            }
+            if (firstSquare > -1) {
+                terminators.push(firstSquare);
+            }
+            let terminatedAt = terminators.length > 0
+                ? Math.min(...terminators) : printRText.length;
+            return {
+                value: printRText.slice(0, Math.max(terminatedAt - 1, 0)).trimRight(),
+                textLeft: printRText.slice(terminatedAt)
+            };
+        }
+    };
+
+	let buttons = [
+        // not needed anymore
+		//~ {
+			//~ name: 'SQL DESCRIBE -> PHP array',
+            //~ implementation: sqlDescribeToPhpArray,
+            //~ sample: someSqlDescribe,
+		//~ },
+        {
+            name: 'Text -> implode PHP_EOL (")',
+            implementation: textToWrappedLinesDoubleQuoted,
+            sample: someMultilineText,
+            language: 'ace/mode/php',
+        },
+        {
+            name: "Text -> implode PHP_EOL (')",
+            implementation: textToWrappedLinesSingleQuoted,
+            sample: someMultilineText,
+            language: 'ace/mode/php',
+        },
+        {
+            name: '<- Undo',
+            implementation: wrappingCode =>
+                    applyToEachLine(/^( *)'(.*?)'[,\.;].*$/, '$1$2', wrappingCode),
+            sample: someWrappingMultiLineCode,
+            language: 'ace/mode/plain_text',
+        },
+        {
+            name: 'SQL select -> JSON',
+            implementation: sqlSelectToJson,
+            sample: someSqlSelect,
+            language: 'ace/mode/javascript',
+        },
+        {
+            name: 'SQL \\G to var_export',
+            implementation: text => Tls.varExport(parseSqlSelectG(text), null, '    ', getInlineLimit()),
+            sample: someSqlSelectG,
+            language: 'ace/mode/php',
+        },
+        {
+            name: 'Regex Diamonds To Format Adapter',
+            implementation: regexDiamondsToFormatAdapter,
+            sample: someRegexDiamonds,
+            language: 'ace/mode/php',
+        },
+        {
+            name: 'Regex Diamonds To OOP Format Adapter',
+            implementation: (source) => applyToEachLine(
+                /^\s*'(.+)' => (.+),\s*$/,
+                '\$seat->$1 = $2;',
+                source
+            ),
+            sample: someRegexDiamonds,
+            language: 'ace/mode/php',
+        },
+        {
+            name: 'Itinerary to cmd',
+            implementation: source => itineraryToCmd(source),
+            sample: [
+                ' 1 DL4637V 14SEP SEAPDX SS1   715P  807P *         TH   E  1',
+                '         OPERATED BY SKYWEST DBA DELTA CONNECTION',
+                ' 2 DL  69V 15SEP PDXNRT SS1  1202P  300P+*      FR/SA   E  1',
+                ' 3 DL 275V 16SEP NRTMNL SS1   450P  855P *         SA   E  1',
+                ' 4 DL 276V 25SEP MNLNRT SS1   810A  155P *         MO   E  2',
+                ' 5 DL 578V 25SEP NRTHNL SS1   920P 1000A *         MO   E  2',
+                ' 6 DL2218V 25SEP HNLSEA SS1   840P  530A+*      MO/TU   E  2',
+            ].join('\n'),
+            language: 'ace/mode/plain_text',
+        },
+        // not needed for now
+        //~ {
+            //~ name: 'Remove Line Breaks',
+            //~ implementation: text => text.replace(/\n/g, ''),
+            //~ sample: 'aaa\nbbbb\ncccc',
+        //~ },
+        {
+            name: 'jsExport',
+            implementation: jsCode => Tls.jsExport(parseJs(jsCode), null, getInlineLimit()),
+            sample: '["aaa", "bbb", "ccc"].join("\\n")',
+            language: 'ace/mode/javascript',
+        },
+        {
+            name: 'Put to "currentData" variable',
+            implementation: jsCode => {
+                window.currentData = parseJs(jsCode);
+                return jsCode;
+            },
+            sample: '{a:5,b:6}',
+            language: 'ace/mode/javascript',
+        },
+        {
+            name: 'Put to "currentData" variable from clipboard',
+            implementation: () => {
+                navigator.clipboard.readText()
+                    .then(text => {
+                        window.currentData = text;
+                    })
+                    .catch(err => {
+                        console.error('Failed to read clipboard contents: ', err);
+                    });
+            },
+            language: 'ace/mode/javascript',
+        },
+        {
+            name: 'Prettify XML',
+            implementation: inlineXml => Tls.prettifyXml(inlineXml),
+            sample: '["aaa", "bbb", "ccc"].join("\\n")',
+            language: 'ace/mode/html',
+        },
+        {
+            name: 'SQL tabs to var_export',
+            implementation: csvTabs => Tls.varExport(parseCsvTabs(csvTabs), null, '    ', getInlineLimit()),
+            sample: '',
+            language: 'ace/mode/php',
+        },
+        {
+            name: 'Eldar',
+            implementation: eldarText => eldarDocToPhpunit(eldarText),
+            sample: someEldar,
+            language: 'ace/mode/php',
+        },
+        {
+            name: 'Eldar To Patterns',
+            implementation: eldarText => eldarDocToPatterns(eldarText),
+            sample: someEldar,
+            language: 'ace/mode/javascript',
+        },
+        {
+            name: 'To CSV',
+            implementation: jsonText => jsonToCsv(jsonText),
+            sample: '',
+            language: 'ace/mode/javascript',
+        },
+        {
+            name: 'To PHP CSV',
+            implementation: jsonText => jsonToCsv(jsonText, true),
+            sample: '',
+            language: 'ace/mode/php',
+        },
+        {
+            name: 'varLocation to tree',
+            implementation: text => varLocationToTree(text),
+            sample: '',
+            language: 'ace/mode/php',
+        },
+        {
+            name: 'fluent logs to calledCommands',
+            implementation: text => fluentLogsToCalledCommands(text),
+            sample: '',
+            language: 'ace/mode/php',
+        },
+        {
+            name: 'fluent logs XML to calledCommands',
+            implementation: text => fluentLogsXmlToCalledCommands(text),
+            sample: '',
+            language: 'ace/mode/php',
+        },
+        {
+            name: 'http query to json',
+            implementation: query => {
+                let result = {};
+                for (let entry of query.split('&')) {
+                    let [k,v] = entry.split('=');
+                    k = decodeURIComponent(k);
+                    v = decodeURIComponent(v.replace(/\+/g, '%20'));
+                    let [_, varName, hasSub, subKeyStr] = k.match(/^(.+?)(?:(\[)(.*)\]|)$/);
+                    let keys = hasSub ? subKeyStr.split('][') : [];
+                    keys.unshift(varName);
+                    let destination = result;
+                    for (let i = 0; i < keys.length; ++i) {
+                        let key = keys[i];
+                        let next = keys[i + 1];
+                        let def = next === '' ? [] : {};
+                        if (key === '') {
+                            // array
+                            key = destination.length;
+                            destination.push(def);
+                        } else {
+                            // object key
+                            destination[key] = destination[key] || def;
+                        }
+                        if (next === '') {
+                            destination = destination[key];
+                        } else if (next) {
+                            destination = destination[key];
+                        } else {
+                            destination[key] = v;
+                        }
+                    }
+                }
+                return Tls.jsExport(result, null, getInlineLimit());
+            },
+            sample: 'rId=7488984&flightOptionId=30309597&apolloPcc=1&currency=1&customerRemarks=&internalRemarks=&msg=++2++HF3513+B+22DEC+6+EWRABJ+TK1++1155P+240P+23DEC++E++HF%2FPP2QJI%0D%0A++3++HF+532+B+23DEC+7+ABJLOS+HK1+++100P+400P+23DEC++E++HF%2FPP2QJI%0D%0A++4++ET1421+T+21JAN+1+LOSABJ+HK1++1010A1050A+21JAN++E++ET%2FMHNMVE%0D%0A++5++HF3512+V+21JAN+1+ABJEWR+TK1+++215P+900P+21JAN++E++HF%2FPP2QJI%0D%0A&passengers%5B%5D=105464471&quote%5Bexchange%5D=on&exchange%5Badult%5D%5BairlinePenalty%5D=250&exchange%5Badult%5D%5BnoShowFee%5D=&exchange%5Badult%5D%5BitnProcessingFee%5D=250&exchange%5Badult%5D%5BfareDiff%5D=0&quote%5Brefund%5D=on&refund%5Badult%5D%5BticketPrice%5D=0&refund%5Badult%5D%5BairlinePenalty%5D=250&refund%5Badult%5D%5BnoShowFee%5D=&refund%5Badult%5D%5BitnProcessingFee%5D=250&refund%5Badult%5D%5BrecalledCommissions%5D=0&refund%5Badult%5D%5BnonRefundableServiceFee%5D=&csDraftId=undefined',
+            language: 'ace/mode/javascript',
+        },
+        {
+            name: 'print_r parser',
+            implementation: printRText => {
+                let parsed = parsePrintRValue(printRText);
+                return Tls.jsExport(parsed, null, getInlineLimit());
+            },
+            sample: [
+                'Array ( ',
+                '                            [segmentNumber] => 1',
+                '                            [airline] => UA ',
+                '                            [flightNumber] => 934',
+                '                            [bookingClass] => L',
+                '                            [departureDate] => Array (',
+                '                                [parsed] => 09-15',
+                '                            )',
+                '                                [departureTime] => Array (',
+                '                                    [parsed] => 08:30',
+                '                                )',
+                '                                    [departureAirport] => EWR',
+                '                                    [destinationAirport] => LHR',
+                '                                    [segmentStatus] => SS',
+                '                                    [seatCount] => 1',
+                '                                    [dayOffset] => 0',
+                '                                    [eticket] => 1',
+                '                                    [daysOfWeek] => 6',
+                '                                    [destinationTime] => Array (',
+                '                                        [parsed] => 20:40 ',
+                '                                    )',
+                '                                    [confirmedByAirline] => 1',
+                '                                    [operatedBy] =>',
+                '                                        [operatedByCode] =>',
+                '                                        [marriage] => 0',
+                '                                        [raw] => 1 UA 934L 15SEP EWRLHR SS1 830A 840P * SA E',
+                '                                        [destinationDate] => Array (',
+                '                                            [parsed] => 09-15',
+                '                                        )',
+                '                                            [departureDt] => Array (',
+                '                                                [parsed] => 09-15 08:30',
+                '                                                [full] => 2018-09-15 08:30:00',
+                '                                            )',
+                '                                                [destinationDt] => Array (',
+                '                                                    [parsed] => 09-15 20:40',
+                '                                                    [full] => 2018-09-15 20:40:00',
+                '                                                )',
+                '                                                    [cabinClass] => economy',
+                '                                                )',
+            ].join('\n'),
+            language: 'ace/mode/javascript',
+        },
+        {
+            name: 'json to var_export',
+            implementation: jsCode => Tls.varExport(parseJs(jsCode), null, '    ', getInlineLimit()),
+            sample: '["aaa", "bbb", "ccc"].join("\\n")',
+            language: 'ace/mode/php',
+        },
+	];
+
+    let editor = ace.edit('describeInput');
+    editor.getSession().setMode("ace/mode/javascript");
+    let buttonsCont = document.getElementById('buttonsCont');
+
+    let makeCallback = (buttonInfo) => () => {
+        if (!editor.getValue() && buttonInfo.sample) {
+            editor.setValue(buttonInfo.sample);
+        } else {
+            editor.getSession().setMode({path: buttonInfo.language, inline: true});
+            editor.setValue(buttonInfo.implementation(editor.getValue()) + '\n');
+        }
+    };
+
+    for (let buttonInfo of buttons) {
+        let btnEl = document.createElement('button');
+        btnEl.innerHTML = buttonInfo.name;
+        btnEl.onclick = makeCallback(buttonInfo);
+        buttonsCont.appendChild(btnEl);
+    }
+    let varImportBtnEl = document.createElement('button');
+    varImportBtnEl.innerHTML = 'var_export to json';
+    varImportBtnEl.onclick = function(e) {
+        let varExport = editor.getValue().trim();
+        varExport = varExport.endsWith(',') ? '[' + varExport + ']' : varExport;
+        let parsed = VarExportParser.parse(varExport);
+        editor.setValue(Tls.jsExport(parsed, null, getInlineLimit()));
+        // Tls.varImport(varExport).then =
+        //     (parsed) => editor.setValue(Tls.jsExport(parsed, null, getInlineLimit()));
+    };
+    buttonsCont.appendChild(varImportBtnEl);
+
+    let xmlToArrBtnEl = document.createElement('button');
+    xmlToArrBtnEl.innerHTML = 'xmlToArr';
+    xmlToArrBtnEl.onclick = function(e) {
+        let xml = editor.getValue().trim();
+        editor.getSession().setMode({path: 'ace/mode/php', inline: true});
+        Tls.xmlToArr(xml).then =
+            (parsed) => editor.setValue(Tls.jsExport(parsed, null, getInlineLimit()));
+    };
+    buttonsCont.appendChild(xmlToArrBtnEl);
+
+</script>
+</body>
+
+<style>
+    #describeInput {
+        font-size: 10px;
+        float: left;
+        width: 1400px;
+        resize: horizontal;
+        height: 600px;
+        border: solid grey 4px;
+    }
+    button {
+        display: block;
+    }
+</style>
