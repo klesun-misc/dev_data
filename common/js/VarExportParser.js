@@ -70,6 +70,19 @@ class VarExportParser
         }
     }
 
+    /** @param $prefixReg should always start with ^ */
+    unprefixReg($prefixReg, $mustMatch) {
+		let match = this.$text.slice(this.$offset).match($prefixReg);
+        if (match && match.index === this.$offset) {
+            this.$offset += match[0].length;
+            return true;
+        } else if ($mustMatch) {
+            throw this.error('Expected ' + $prefixReg);
+        } else {
+            return false;
+        }
+    }
+
     skipLineComment() {
         for (let $i = this.$offset; $i < this.$text.length; ++$i) {
             let $char = this.$text[$i];
@@ -94,7 +107,7 @@ class VarExportParser
         }
     }
 
-    parsePhpArray() {
+    parsePhpArray(closingBracket = ']') {
         let $arrResult = [];
         let $objResult = {};
         this.skipWhiteSpace();
@@ -118,7 +131,7 @@ class VarExportParser
                 break;
             }
         }
-        this.unprefix(']', true);
+        this.unprefix(closingBracket, true);
         return Object.keys($objResult).length > 0
             ? Object.assign($objResult, $arrResult)
             : $arrResult;
@@ -135,6 +148,8 @@ class VarExportParser
             $parsed = [this.parseString('"')];
         } else if (this.unprefix('[')) {
             $parsed = [this.parsePhpArray()];
+        } else if (this.unprefixReg(/^array\s*\(/)) {
+            $parsed = [this.parsePhpArray(')')];
         } else if (this.unprefix('null')) {
             $parsed = [null];
         } else if (this.unprefix('false')) {

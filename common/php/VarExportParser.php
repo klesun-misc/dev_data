@@ -85,6 +85,19 @@ class VarExportParser
         }
     }
 
+    /** @param string $prefixReg should always start with ^ */
+    private function unprefixReg(string $prefixReg, bool $mustMatch = false) {
+		$doesMatch = preg_match($prefixReg, substr($this->text, $this->offset), $matches);
+        if ($doesMatch) {
+            $this->offset += strlen($matches[0]);
+            return true;
+        } else if ($mustMatch) {
+            throw $this->error('Expected '.$prefixReg);
+        } else {
+            return false;
+        }
+    }
+
     private function skipLineComment()
     {
         for ($i = $this->offset; $i < strlen($this->text); ++$i) {
@@ -111,7 +124,7 @@ class VarExportParser
         }
     }
 
-    private function parsePhpArray()
+    private function parsePhpArray($closingBracket = ']')
     {
         $result = [];
 
@@ -137,7 +150,7 @@ class VarExportParser
             }
         }
 
-        $this->unprefix(']', true);
+        $this->unprefix($closingBracket, true);
         return $result;
     }
 
@@ -152,6 +165,8 @@ class VarExportParser
             $parsed = [$this->parseString('"')];
         } elseif ($this->unprefix('[')) {
             $parsed = [$this->parsePhpArray()];
+        } elseif ($this->unprefixReg('/^array\s*\(/')) {
+            $parsed = [$this->parsePhpArray(')')];
         } elseif ($this->unprefix('null')) {
             $parsed = [null];
         } elseif ($this->unprefix('false')) {
