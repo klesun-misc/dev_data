@@ -1,0 +1,1 @@
+This directory contains some helper scripts and GUI to develop/test real projects.
