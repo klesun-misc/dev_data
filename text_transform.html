@@ -682,6 +682,12 @@ Enter your text here:<br/>
             sample: '["aaa", "bbb", "ccc"].join("\\n")',
             language: 'ace/mode/html',
         },
+        {
+            name: 'Prettify json',
+            implementation: jsCode => Tls.jsExport(parseJs(jsCode), null, getInlineLimit()),
+            sample: '["aaa", "bbb", "ccc"].join("\\n")',
+            language: 'ace/mode/javascript',
+        },
 
         // not needed anymore
 		//~ {
@@ -811,12 +817,6 @@ Enter your text here:<br/>
             implementation: text => varLocationToTree(text),
             sample: '',
             language: 'ace/mode/php',
-        },
-        {
-            name: 'json to javascript (pretty multi-line strings)',
-            implementation: jsCode => Tls.jsExport(parseJs(jsCode), null, getInlineLimit()),
-            sample: '["aaa", "bbb", "ccc"].join("\\n")',
-            language: 'ace/mode/javascript',
         },
         {
             name: 'Text -> implode PHP_EOL (")',
