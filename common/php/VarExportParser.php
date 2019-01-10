@@ -165,8 +165,6 @@ class VarExportParser
             $parsed = [$this->parseString('"')];
         } elseif ($this->unprefix('[')) {
             $parsed = [$this->parsePhpArray()];
-        } elseif ($this->unprefixReg('/^array\s*\(/')) {
-            $parsed = [$this->parsePhpArray(')')];
         } elseif ($this->unprefix('null')) {
             $parsed = [null];
         } elseif ($this->unprefix('false')) {
@@ -180,6 +178,8 @@ class VarExportParser
         } elseif ($this->unprefix('implode(PHP_EOL, [')) {
             $lines = $this->parsePhpArray();
             $this->unprefix(')', true);
+        } elseif ($this->unprefixReg('/^array\s*\(/')) {
+            $parsed = [$this->parsePhpArray(')')];
             $parsed = [implode(PHP_EOL, $lines)];
         } else {
             if ($mustMatch) {
