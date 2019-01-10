@@ -940,17 +940,6 @@ Enter your text here:<br/>
         btnEl.onclick = makeCallback(buttonInfo);
         buttonsCont.appendChild(btnEl);
     }
-    let varImportBtnEl = document.createElement('button');
-    varImportBtnEl.innerHTML = 'var_export to json';
-    varImportBtnEl.onclick = function(e) {
-        let varExport = editor.getValue().trim();
-        varExport = varExport.endsWith(',') ? '[' + varExport + ']' : varExport;
-        let parsed = VarExportParser.parse(varExport);
-        editor.setValue(Tls.jsExport(parsed, null, getInlineLimit()));
-        // Tls.varImport(varExport).then =
-        //     (parsed) => editor.setValue(Tls.jsExport(parsed, null, getInlineLimit()));
-    };
-    buttonsCont.appendChild(varImportBtnEl);
 
     let xmlToArrBtnEl = document.createElement('button');
     xmlToArrBtnEl.innerHTML = 'xmlToArr';
