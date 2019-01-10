@@ -75,7 +75,7 @@ class VarExportParser
 
     private function unprefix(string $prefix, bool $mustMatch = false): bool
     {
-        if (strpos($this->text, $prefix, $this->offset) === $this->offset) {
+        if (substr($this->text, $this->offset, strlen($prefix)) === $prefix) {
             $this->offset += strlen($prefix);
             return true;
         } elseif ($mustMatch) {
@@ -178,9 +178,9 @@ class VarExportParser
         } elseif ($this->unprefix('implode(PHP_EOL, [')) {
             $lines = $this->parsePhpArray();
             $this->unprefix(')', true);
+            $parsed = [implode(PHP_EOL, $lines)];
         } elseif ($this->unprefixReg('/^array\s*\(/')) {
             $parsed = [$this->parsePhpArray(')')];
-            $parsed = [implode(PHP_EOL, $lines)];
         } else {
             if ($mustMatch) {
                 throw $this->error('Expected: value');

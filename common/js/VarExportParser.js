@@ -161,9 +161,9 @@ class VarExportParser
         } else if (this.unprefix('implode(PHP_EOL, [')) {
             let $lines = this.parsePhpArray();
             this.unprefix(')', true);
+            $parsed = [$lines.join('\n')];
         } else if (this.$text.slice(this.$offset, this.$offset + 5) === 'array' &&  this.unprefixReg(/^array\s*\(/)) {
             $parsed = [this.parsePhpArray(')')];
-            $parsed = [$lines.join('\n')];
         } else {
             if ($mustMatch) {
                 throw this.error('Expected: value');
