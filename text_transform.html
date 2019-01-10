@@ -942,7 +942,7 @@ Enter your text here:<br/>
     }
 
     let xmlToArrBtnEl = document.createElement('button');
-    xmlToArrBtnEl.innerHTML = 'xmlToArr';
+    xmlToArrBtnEl.innerHTML = 'server-side: xmlToArr';
     xmlToArrBtnEl.onclick = function(e) {
         let xml = editor.getValue().trim();
         editor.getSession().setMode({path: 'ace/mode/php', inline: true});
