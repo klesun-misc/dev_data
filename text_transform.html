@@ -582,6 +582,48 @@ Enter your text here:<br/>
         "        ')?',",
     ].join('\n');
 
+    let printRExample = [
+        'Array ( ',
+        '                            [segmentNumber] => 1',
+        '                            [airline] => UA ',
+        '                            [flightNumber] => 934',
+        '                            [bookingClass] => L',
+        '                            [departureDate] => Array (',
+        '                                [parsed] => 09-15',
+        '                            )',
+        '                                [departureTime] => Array (',
+        '                                    [parsed] => 08:30',
+        '                                )',
+        '                                    [departureAirport] => EWR',
+        '                                    [destinationAirport] => LHR',
+        '                                    [segmentStatus] => SS',
+        '                                    [seatCount] => 1',
+        '                                    [dayOffset] => 0',
+        '                                    [eticket] => 1',
+        '                                    [daysOfWeek] => 6',
+        '                                    [destinationTime] => Array (',
+        '                                        [parsed] => 20:40 ',
+        '                                    )',
+        '                                    [confirmedByAirline] => 1',
+        '                                    [operatedBy] =>',
+        '                                        [operatedByCode] =>',
+        '                                        [marriage] => 0',
+        '                                        [raw] => 1 UA 934L 15SEP EWRLHR SS1 830A 840P * SA E',
+        '                                        [destinationDate] => Array (',
+        '                                            [parsed] => 09-15',
+        '                                        )',
+        '                                            [departureDt] => Array (',
+        '                                                [parsed] => 09-15 08:30',
+        '                                                [full] => 2018-09-15 08:30:00',
+        '                                            )',
+        '                                                [destinationDt] => Array (',
+        '                                                    [parsed] => 09-15 20:40',
+        '                                                    [full] => 2018-09-15 20:40:00',
+        '                                                )',
+        '                                                    [cabinClass] => economy',
+        '                                                )',
+    ].join('\n');
+
     let varExportExample = [
         "[",
         "    'destinations' => [",
@@ -607,6 +649,104 @@ Enter your text here:<br/>
         "]",
         "",
     ].join('\n');
+
+    let fixedWidthCharMapping = {
+        '0':  65296, // '０'
+        '1':  65297, // '１'
+        '2':  65298, // '２'
+        '3':  65299, // '３'
+        '4':  65300, // '４'
+        '5':  65301, // '５'
+        '6':  65302, // '６'
+        '7':  65303, // '７'
+        '8':  65304, // '８'
+        '9':  65305, // '９'
+        ' ':   8193, //  '
+        '!':  65281, // '！'
+        '"':  65282, // '＂'
+        '#':  65283, // '＃'
+        '$':  65284, // '＄'
+        '%':  65285, // '％'
+        '&':  65286, // '＆'
+        '\'': 65287, // '＇'
+        '(':  65288, // '（'
+        ')':  65289, // '）'
+        '*':  65290, // '＊'
+        '+':  65291, // '＋'
+        ',':  65292, // '，'
+        '-':  65293, // '－'
+        '.':  65294, // '．'
+        '/':  65295, // '／'
+        ':':  65306, // '：'
+        ';':  65307, // '；'
+        '<':  65308, // '＜'
+        '=':  65309, // '＝'
+        '>':  65310, // '＞'
+        '?':  65311, // '？'
+        '@':  65312, // '＠'
+        'A':  65313, // 'Ａ'
+        'B':  65314, // 'Ｂ'
+        'C':  65315, // 'Ｃ'
+        'D':  65316, // 'Ｄ'
+        'E':  65317, // 'Ｅ'
+        'F':  65318, // 'Ｆ'
+        'G':  65319, // 'Ｇ'
+        'H':  65320, // 'Ｈ'
+        'I':  65321, // 'Ｉ'
+        'J':  65322, // 'Ｊ'
+        'K':  65323, // 'Ｋ'
+        'L':  65324, // 'Ｌ'
+        'M':  65325, // 'Ｍ'
+        'N':  65326, // 'Ｎ'
+        'O':  65327, // 'Ｏ'
+        'P':  65328, // 'Ｐ'
+        'Q':  65329, // 'Ｑ'
+        'R':  65330, // 'Ｒ'
+        'S':  65331, // 'Ｓ'
+        'T':  65332, // 'Ｔ'
+        'U':  65333, // 'Ｕ'
+        'V':  65334, // 'Ｖ'
+        'W':  65335, // 'Ｗ'
+        'X':  65336, // 'Ｘ'
+        'Y':  65337, // 'Ｙ'
+        'Z':  65338, // 'Ｚ'
+        '[':  65339, // '［'
+        '\\': 65340, //  '＼'
+        ']':  65341, // '］'
+        '^':  65342, // '＾'
+        '_':  65343, // '＿'
+        '`':  65344, // '｀'
+        'a':  65345, // 'ａ'
+        'b':  65346, // 'ｂ'
+        'c':  65347, // 'ｃ'
+        'd':  65348, // 'ｄ'
+        'e':  65349, // 'ｅ'
+        'f':  65350, // 'ｆ'
+        'g':  65351, // 'ｇ'
+        'h':  65352, // 'ｈ'
+        'i':  65353, // 'ｉ'
+        'j':  65354, // 'ｊ'
+        'k':  65355, // 'ｋ'
+        'l':  65356, // 'ｌ'
+        'm':  65357, // 'ｍ'
+        'n':  65358, // 'ｎ'
+        'o':  65359, // 'ｏ'
+        'p':  65360, // 'ｐ'
+        'q':  65361, // 'ｑ'
+        'r':  65362, // 'ｒ'
+        's':  65363, // 'ｓ'
+        't':  65364, // 'ｔ'
+        'u':  65365, // 'ｕ'
+        'v':  65366, // 'ｖ'
+        'w':  65367, // 'ｗ'
+        'x':  65368, // 'ｘ'
+        'y':  65369, // 'ｙ'
+        'z':  65370, // 'ｚ'
+        '{':  65371, // '｛'
+        '|':  65372, // '｜'
+        '}':  65373, // '｝'
+        '~':  65374, // '～'
+    };
 
     let parseJs = (jsCode) => {
         try {
@@ -663,6 +803,40 @@ Enter your text here:<br/>
         }
     };
 
+    let parseHttpQuery = query => {
+        let result = {};
+        for (let entry of query.split('&')) {
+            let [k,v] = entry.split('=');
+            k = decodeURIComponent(k);
+            v = decodeURIComponent(v.replace(/\+/g, '%20'));
+            let [_, varName, hasSub, subKeyStr] = k.match(/^(.+?)(?:(\[)(.*)\]|)$/);
+            let keys = hasSub ? subKeyStr.split('][') : [];
+            keys.unshift(varName);
+            let destination = result;
+            for (let i = 0; i < keys.length; ++i) {
+                let key = keys[i];
+                let next = keys[i + 1];
+                let def = next === '' ? [] : {};
+                if (key === '') {
+                    // array
+                    key = destination.length;
+                    destination.push(def);
+                } else {
+                    // object key
+                    destination[key] = destination[key] || def;
+                }
+                if (next === '') {
+                    destination = destination[key];
+                } else if (next) {
+                    destination = destination[key];
+                } else {
+                    destination[key] = v;
+                }
+            }
+        }
+        return result;
+    };
+
 	let buttons = [
         {
             name: 'var_export to json',
@@ -697,39 +871,7 @@ Enter your text here:<br/>
 		//~ },
         {
             name: 'http query to json',
-            implementation: query => {
-                let result = {};
-                for (let entry of query.split('&')) {
-                    let [k,v] = entry.split('=');
-                    k = decodeURIComponent(k);
-                    v = decodeURIComponent(v.replace(/\+/g, '%20'));
-                    let [_, varName, hasSub, subKeyStr] = k.match(/^(.+?)(?:(\[)(.*)\]|)$/);
-                    let keys = hasSub ? subKeyStr.split('][') : [];
-                    keys.unshift(varName);
-                    let destination = result;
-                    for (let i = 0; i < keys.length; ++i) {
-                        let key = keys[i];
-                        let next = keys[i + 1];
-                        let def = next === '' ? [] : {};
-                        if (key === '') {
-                            // array
-                            key = destination.length;
-                            destination.push(def);
-                        } else {
-                            // object key
-                            destination[key] = destination[key] || def;
-                        }
-                        if (next === '') {
-                            destination = destination[key];
-                        } else if (next) {
-                            destination = destination[key];
-                        } else {
-                            destination[key] = v;
-                        }
-                    }
-                }
-                return Tls.jsExport(result, null, getInlineLimit());
-            },
+            implementation: query => Tls.jsExport(parseHttpQuery(query), null, getInlineLimit()),
             sample: 'rId=7488984&flightOptionId=30309597&apolloPcc=1&currency=1&customerRemarks=&internalRemarks=&msg=++2++HF3513+B+22DEC+6+EWRABJ+TK1++1155P+240P+23DEC++E++HF%2FPP2QJI%0D%0A++3++HF+532+B+23DEC+7+ABJLOS+HK1+++100P+400P+23DEC++E++HF%2FPP2QJI%0D%0A++4++ET1421+T+21JAN+1+LOSABJ+HK1++1010A1050A+21JAN++E++ET%2FMHNMVE%0D%0A++5++HF3512+V+21JAN+1+ABJEWR+TK1+++215P+900P+21JAN++E++HF%2FPP2QJI%0D%0A&passengers%5B%5D=105464471&quote%5Bexchange%5D=on&exchange%5Badult%5D%5BairlinePenalty%5D=250&exchange%5Badult%5D%5BnoShowFee%5D=&exchange%5Badult%5D%5BitnProcessingFee%5D=250&exchange%5Badult%5D%5BfareDiff%5D=0&quote%5Brefund%5D=on&refund%5Badult%5D%5BticketPrice%5D=0&refund%5Badult%5D%5BairlinePenalty%5D=250&refund%5Badult%5D%5BnoShowFee%5D=&refund%5Badult%5D%5BitnProcessingFee%5D=250&refund%5Badult%5D%5BrecalledCommissions%5D=0&refund%5Badult%5D%5BnonRefundableServiceFee%5D=&csDraftId=undefined',
             language: 'ace/mode/javascript',
         },
@@ -739,47 +881,7 @@ Enter your text here:<br/>
                 let parsed = parsePrintRValue(printRText);
                 return Tls.jsExport(parsed, null, getInlineLimit());
             },
-            sample: [
-                'Array ( ',
-                '                            [segmentNumber] => 1',
-                '                            [airline] => UA ',
-                '                            [flightNumber] => 934',
-                '                            [bookingClass] => L',
-                '                            [departureDate] => Array (',
-                '                                [parsed] => 09-15',
-                '                            )',
-                '                                [departureTime] => Array (',
-                '                                    [parsed] => 08:30',
-                '                                )',
-                '                                    [departureAirport] => EWR',
-                '                                    [destinationAirport] => LHR',
-                '                                    [segmentStatus] => SS',
-                '                                    [seatCount] => 1',
-                '                                    [dayOffset] => 0',
-                '                                    [eticket] => 1',
-                '                                    [daysOfWeek] => 6',
-                '                                    [destinationTime] => Array (',
-                '                                        [parsed] => 20:40 ',
-                '                                    )',
-                '                                    [confirmedByAirline] => 1',
-                '                                    [operatedBy] =>',
-                '                                        [operatedByCode] =>',
-                '                                        [marriage] => 0',
-                '                                        [raw] => 1 UA 934L 15SEP EWRLHR SS1 830A 840P * SA E',
-                '                                        [destinationDate] => Array (',
-                '                                            [parsed] => 09-15',
-                '                                        )',
-                '                                            [departureDt] => Array (',
-                '                                                [parsed] => 09-15 08:30',
-                '                                                [full] => 2018-09-15 08:30:00',
-                '                                            )',
-                '                                                [destinationDt] => Array (',
-                '                                                    [parsed] => 09-15 20:40',
-                '                                                    [full] => 2018-09-15 20:40:00',
-                '                                                )',
-                '                                                    [cabinClass] => economy',
-                '                                                )',
-            ].join('\n'),
+            sample: printRExample,
             language: 'ace/mode/javascript',
         },
         {
@@ -809,6 +911,26 @@ Enter your text here:<br/>
         {
             name: 'To PHP CSV',
             implementation: jsonText => jsonToCsv(jsonText, true),
+            sample: '',
+            language: 'ace/mode/php',
+        },
+        {
+            name: 'To fixed width unicode',
+            implementation: text => {
+                let result = '';
+                // if you specify them in string literals, these characters get replaced
+                // with gibberish, possibly because they are in a <script/> tag
+                let mapping = fixedWidthCharMapping;
+                for (let i = 0; i < text.length; ++i) {
+                    let char = text[i];
+                    if (char in mapping) {
+                        result += String.fromCharCode(mapping[char]);
+                    } else {
+                        result += char;
+                    }
+                }
+                return result;
+            },
             sample: '',
             language: 'ace/mode/php',
         },
