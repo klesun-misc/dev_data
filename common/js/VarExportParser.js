@@ -34,7 +34,7 @@ class VarExportParser
                 }
             }
         }
-        let $result = +this.$text.slice(this.$offset, $i - this.$offset);
+        let $result = +this.$text.slice(this.$offset, this.$offset + $i - this.$offset);
         this.$offset = $i;
         return $result;
     }
