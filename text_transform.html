@@ -803,6 +803,26 @@ Enter your text here:<br/>
         }
     };
 
+    let prettyPrintParentheses = (text) => {
+    	let level = 0;
+    	let output = '';
+    	for (let i = 0; i < text.length; ++i) {
+    		let prev = text[i - 1];
+    		let ch = text[i];
+            let next = text[i + 1];
+    		if (ch === '(' && next !== ')') {
+    			++level;
+                output += ch + '\n' + ' '.repeat(level);
+            } else if (ch === ')' && prev !== '(') {
+                --level;
+                output += '\n' + ' '.repeat(level) + ch + '\n' + ' '.repeat(level);
+            } else {
+    			output += ch;
+            }
+        }
+    	return output;
+    };
+
     let parseHttpQuery = query => {
         let result = {};
         for (let entry of query.split('&')) {
@@ -913,6 +933,12 @@ Enter your text here:<br/>
             implementation: jsonText => jsonToCsv(jsonText, true),
             sample: '',
             language: 'ace/mode/php',
+        },
+        {
+            name: 'Pretty-Print Parentheses',
+            implementation: jsonText => prettyPrintParentheses(jsonText),
+            sample: '',
+            language: 'ace/mode/plain_text',
         },
         {
             name: 'To fixed width unicode',
