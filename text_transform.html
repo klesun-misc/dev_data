@@ -102,7 +102,7 @@ Enter your text here:<br/>
     const textToWrappedLinesDoubleQuoted = function(text)
     {
 		return '' +
-			'implode(PHP_EOL, [\n' + text
+			'[\n' + text
 			.split('\n')
 //			.filter(l => l !== '')
 			// TODO: escape properly. for now i don't handle when string is already escaped
@@ -110,21 +110,21 @@ Enter your text here:<br/>
 			.map(l => l.replace(/"/g, '\\"'))
 			.map(l => '    "' + l + '",')
 			.join('\n') +
-			'\n])';
+			'\n].join("\\n")';
     };
 
     const textToWrappedLinesSingleQuoted = function(text)
     {
         text = text.replace(/\n$/, '');
 		return '' +
-			'implode(PHP_EOL, [\n' + text
+			'[\n' + text
 			.split('\n')
 //			.filter(l => l !== '')
 			// TODO: escape properly. for now i don't handle when string is already escaped
 			.map(l => l.replace(/'/g, "\\'"))
 			.map(l => "    '" + l + "',")
 			.join('\n') +
-			'\n])';
+			'\n].join(\'\\n\')';
     };
 
 	const regexDiamondsToFormatAdapter = (codeRegexWithDiamonds) =>
@@ -336,7 +336,7 @@ Enter your text here:<br/>
         return Tls.varExport(calledCommands);
     };
 
-	const fluentLogsXmlToCalledCommands = (inputText) => {
+	const rbsFluentLogsXmlToCalledCommands = (inputText) => {
 	    let logs = inputText.split('\n').map(t => JSON.parse(t));
         let cmdRegex = /^Sending\.\s+(Travelport|Amadeus|Sabre)\s+SOAP\s+request\s*:\s*\(.*(?:\s+[A-Z0-9]{9})?, (.*)\)\s*$/;
         let outRegex = /^Received\s+(Travelport|Amadeus|Sabre)\s+SOAP\s+response\s*:\s*\((.*)\)\s*$/;
@@ -366,6 +366,44 @@ Enter your text here:<br/>
         }
         return Tls.varExport(calledCommands);
     };
+
+	const dynLogsToCmdRecs = (text, asHttp = false) => {
+		let logRecs = eval('[' + text.split('\n').join(',') + ']');
+		let extractOutput = (rs) => {
+			let xmlDoc = new DOMParser().parseFromString(rs, 'text/xml');
+			return [
+				...xmlDoc.querySelectorAll('SubmitTerminalTransactionResult'), // travelport
+				...xmlDoc.querySelectorAll('SabreCommandLLSRS > Response'), // sabre
+				...xmlDoc.querySelectorAll('Command_CrypticReply > longTextString > textStringDetails'), // amadeus
+			].map(dom => dom.textContent)[0];
+		};
+
+		let cmdRecs = [];
+		for (let logRec of logRecs) {
+			if (logRec.msg.startsWith('XML RQ:')) {
+				cmdRecs.push({
+					cmd: logRec.msg.replace(/^XML RQ:\s*>?(.*?);?\s*$/, '$1'),
+                    ...(!asHttp ? {
+                    	output: null, // populated further
+                    } : {
+                        rq: logRec.obj,
+                        rs: null, // populated further
+                    }),
+				});
+			} else if (logRec.msg.startsWith('XML RS:')) {
+				let last = cmdRecs.slice(-1)[0];
+				if (last && !last.rs && !last.output) {
+					if (asHttp) {
+                        last.rs = logRec.obj;
+                    } else {
+                        last.output = extractOutput(logRec.obj);
+                    }
+				}
+			}
+		}
+
+		return Tls.jsExport(cmdRecs);
+	};
 
     var someSqlDescribe = [
         '| updated_dt  | datetime     | YES  |     | NULL    |       |',
@@ -748,6 +786,11 @@ Enter your text here:<br/>
         '~':  65374, // '～'
     };
 
+    let dynLogsSample = `{"dt":1565084689,"dt_micro":"15650846890139000","hst":"ap01prtr.dyninno.net","msg":"TODO: Processing HTTP RQ \\/terminal\\/getPqItinerary","obj":"{\\n    \\"rqBody\\": {\\n        \\"1\\": \\"\\",\\n        \\"pqTravelRequestId\\": \\"10591900\\",\\n        \\"gds\\": \\"galileo\\",\\n        \\"travelRequestId\\": \\"10591900\\"\\n    },\\n    \\"protocol\\": \\"http\\"\\n}"}
+{"dt":1565084689,"dt_micro":"15650846890190000","hst":"ap01prtr.dyninno.net","msg":"XML RQ: >*R;","obj":"<?xml version=\\"1.0\\" encoding=\\"UTF-8\\"?>\\n\\t<SOAP-ENV:Envelope xmlns:SOAP-ENV=\\"http:\\/\\/schemas.xmlsoap.org\\/soap\\/envelope\\/\\" xmlns:ns1=\\"http:\\/\\/webservices.galileo.com\\"><SOAP-ENV:Body><ns1:SubmitTerminalTransaction><ns1:Token>ZvuhYvlsIuN8GB1+ylEeuRThGYp1BUBb5dik\\/qVCBTK7a0OVT\\/Wy0bGSsrh2g6vhLNSXMkn\\/VAmuqjceEMORyMB0vMb0bvaZULJYa92mekzOUTUOM9Y+4Wox2xT5tqMx<\\/ns1:Token><ns1:Request>*R<\\/ns1:Request><ns1:IntermediateResponse><\\/ns1:IntermediateResponse><\\/ns1:SubmitTerminalTransaction><\\/SOAP-ENV:Body><\\/SOAP-ENV:Envelope>"}
+{"dt":1565084689,"dt_micro":"15650846890228000","hst":"ap01prtr.dyninno.net","msg":"XML RS:","obj":"<?xml version=\\"1.0\\" encoding=\\"UTF-8\\"?>\\n<soapenv:Envelope xmlns:soapenv=\\"http:\\/\\/schemas.xmlsoap.org\\/soap\\/envelope\\/\\" xmlns:xsd=\\"http:\\/\\/www.w3.org\\/2001\\/XMLSchema\\" xmlns:xsi=\\"http:\\/\\/www.w3.org\\/2001\\/XMLSchema-instance\\">\\n <soapenv:Body><SubmitTerminalTransactionResponse xmlns=\\"http:\\/\\/webservices.galileo.com\\"><SubmitTerminalTransactionResult USM=\\"false\\"> 1. UA 8844 U  20MAY LAXFRA HS1   310P #1050A O        E WE  1\\n         OPERATED BY DEUTSCHE LUFTHANSA AG\\n 2. UA 9132 U  21MAY FRABOM HS1   120P # 100A O        E TH  1\\n         OPERATED BY DEUTSCHE LUFTHANSA AG\\n 3. LH  757 S  25MAY BOMFRA HS1   255A   800A O        E MO  2\\n 4. LH  450 S  25MAY FRALAX HS1   210P   450P O        E MO  2\\n** FILED FARE DATA EXISTS **           &gt;*FF;\\n&gt;&lt;<\\/SubmitTerminalTransactionResult><\\/SubmitTerminalTransactionResponse> <\\/soapenv:Body>\\n<\\/soapenv:Envelope>"}
+{"dt":1565084689,"dt_micro":"15650846890241000","hst":"ap01prtr.dyninno.net","msg":"ERROR: HTTP RQ was not satisfied 400","obj":"{\\n    \\"message\\": \\"Last pricing command FQP1.2*INF\\/S1.2 does not cover some itinerary segments: 3,4\\",\\n    \\"httpStatusCode\\": 400,\\n    \\"isOk\\": undefined,\\n    \\"data\\": undefined,\\n    \\"errorClass\\": \\"Error\\",\\n    \\"stack\\": [\\n        \\"Error: Last pricing command FQP1.2*INF\\/S1.2 does not cover some itinerary segments: 3,4\\",\\n        \\"    at makeExc (\\/export\\/storage0\\/www\\/gds-direct-plus.asaptickets.com\\/node_modules\\/klesun-node-tools\\/src\\/Rej.js:15:10)\\",\\n        \\"    at Object.makeRejection [as BadRequest] (\\/export\\/storage0\\/www\\/gds-direct-plus.asaptickets.com\\/node_modules\\/klesun-node-tools\\/src\\/Rej.js:27:13)\\",\\n        \\"    at ImportPqGalileoAction.collectPricingCmds (\\/export\\/storage0\\/www\\/gds-direct-plus.asaptickets.com\\/backend\\/Transpiled\\/Rbs\\/GdsDirect\\/Actions\\/Galileo\\/ImportPqGalileoAction.js:233:10)\\",\\n        \\"    at process._tickCallback (internal\\/process\\/next_tick.js:68:7)\\"\\n    ].join(\\"\\\\n\\")\\n}"}`;
+
     let parseJs = (jsCode) => {
         try {
             return eval('(' + jsCode + ')');
@@ -967,13 +1010,13 @@ Enter your text here:<br/>
             language: 'ace/mode/php',
         },
         {
-            name: 'Text -> implode PHP_EOL (")',
+            name: 'Text -> [...].join(\\n) (")',
             implementation: textToWrappedLinesDoubleQuoted,
             sample: someMultilineText,
             language: 'ace/mode/php',
         },
         {
-            name: "Text -> implode PHP_EOL (')",
+            name: "Text -> [...].join(\\n) (')",
             implementation: textToWrappedLinesSingleQuoted,
             sample: someMultilineText,
             language: 'ace/mode/php',
@@ -984,6 +1027,18 @@ Enter your text here:<br/>
                     applyToEachLine(/^( *)'(.*?)'[,\.;].*$/, '$1$2', wrappingCode),
             sample: someWrappingMultiLineCode,
             language: 'ace/mode/plain_text',
+        },
+        {
+        	name: 'Dyn Logs -> httpRequests',
+            sample: dynLogsSample,
+            implementation: (text) => dynLogsToCmdRecs(text, true),
+            language: 'ace/mode/javascript',
+        },
+        {
+        	name: 'Dyn Logs -> calledCommands',
+            sample: dynLogsSample,
+            implementation: (text) => dynLogsToCmdRecs(text, true),
+            language: 'ace/mode/javascript',
         },
         //{
         //    name: 'Regex Diamonds To Format Adapter',
