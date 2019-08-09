@@ -390,7 +390,7 @@ Enter your text here:<br/>
                         rs: null, // populated further
                     }),
 				});
-			} else if (logRec.msg.startsWith('XML RS:')) {
+			} else if (logRec.msg.startsWith('XML RS:') || logRec.msg.startsWith('ERROR: (XML RS)')) {
 				let last = cmdRecs.slice(-1)[0];
 				if (last && !last.rs && !last.output) {
 					if (asHttp) {
