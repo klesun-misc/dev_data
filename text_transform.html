@@ -291,6 +291,22 @@ Enter your text here:<br/>
         return csv;
     };
 
+    const csvToJson = (csvText, delimiter) => {
+		let lines = csvText.trim().split('\n');
+		let cols = lines.shift().split(delimiter);
+		let rows = lines.map(line => {
+			let row = {};
+			let vals = line.split(delimiter);
+			for (let i = 0; i < cols.length; ++i) {
+				let col = cols[i];
+				let val = vals[i];
+				row[col] = val;
+			}
+			return row;
+		});
+        return Tls.jsExport(rows);
+	};
+
     const varLocationToTree = (varLocationText) => {
         varLocationText = varLocationText.trim();
         varLocationText = varLocationText.endsWith(',')
@@ -992,6 +1008,12 @@ Enter your text here:<br/>
         {
             name: 'To CSV',
             implementation: jsonText => jsonToCsv(jsonText),
+            sample: '',
+            language: 'ace/mode/javascript',
+        },
+        {
+            name: 'From CSV (Tab)',
+            implementation: csvText => csvToJson(csvText, '\t'),
             sample: '',
             language: 'ace/mode/javascript',
         },
