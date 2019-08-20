@@ -398,7 +398,7 @@ Enter your text here:<br/>
         for (let logRec of logRecs) {
             if (logRec.msg.startsWith('XML RQ:')) {
                 cmdRecs.push({
-                    cmd: logRec.msg.replace(/^XML RQ:\s*>?(.*?);?\s*$/, '$1'),
+                    cmd: logRec.msg.replace(/^XML RQ:\s*>?(.*?);?(\s+.*)$/, '$1'),
                     ...(!asHttp ? {
                         output: null, // populated further
                     } : {
@@ -1083,7 +1083,7 @@ Enter your text here:<br/>
         {
             name: 'Dyn Logs -> calledCommands',
             sample: dynLogsSample,
-            implementation: (text) => dynLogsToCmdRecs(text, true),
+            implementation: (text) => dynLogsToCmdRecs(text, false),
             language: 'ace/mode/javascript',
         },
         //{
