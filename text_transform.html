@@ -395,9 +395,13 @@ Enter your text here:<br/>
         };
 
         let cmdRecs = [];
+        const hashToCmdRec = {};
         for (let logRec of logRecs) {
             if (logRec.msg.startsWith('XML RQ:')) {
-                cmdRecs.push({
+                const match = logRec.msg.match(/^XML RQ:\s*>?(.*?);?\s+.*([a-z0-9]{6})$/);
+                const cmd = !match ? null : match[1];
+                const hash = !match ? null : match[2];
+                const cmdRec = {
                     cmd: logRec.msg.replace(/^XML RQ:\s*>?(.*?);?(\s+.*)$/, '$1'),
                     ...(!asHttp ? {
                         output: null, // populated further
@@ -405,9 +409,18 @@ Enter your text here:<br/>
                         rq: logRec.obj,
                         rs: null, // populated further
                     }),
-                });
+                };
+                if (hash) {
+                    hashToCmdRec[hash] = cmdRec;
+                }
+                cmdRecs.push(cmdRec);
             } else if (logRec.msg.startsWith('XML RS:') || logRec.msg.startsWith('ERROR: (XML RS)')) {
-                let last = cmdRecs.slice(-1)[0];
+                const hash = logRec.msg.replace(/^.*([a-z0-9]{6})$/, '$1');
+                let last;
+                if (hash) {
+                    last = hashToCmdRec[hash];
+                }
+                last = last || cmdRecs.slice(-1)[0];
                 if (last && !last.rs && !last.output) {
                     if (asHttp) {
                         last.rs = logRec.obj;
