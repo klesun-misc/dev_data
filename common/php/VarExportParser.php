@@ -134,7 +134,7 @@ class VarExportParser
             list($lValue) = $tuple;
             $this->skipWhiteSpace();
 
-            if (is_string($lValue) && $this->unprefix('=>')) {
+            if ((is_string($lValue) || is_numeric($lValue)) && $this->unprefix('=>')) {
                 $this->skipWhiteSpace();
                 list($rValue) = $this->parseValue(true);
                 $result[$lValue] = $rValue;
@@ -165,7 +165,7 @@ class VarExportParser
             $parsed = [$this->parseString('"')];
         } elseif ($this->unprefix('[')) {
             $parsed = [$this->parsePhpArray()];
-        } elseif ($this->unprefix('null')) {
+        } elseif ($this->unprefix('null') || $this->unprefix('NULL')) {
             $parsed = [null];
         } elseif ($this->unprefix('false')) {
             $parsed = [false];
@@ -212,5 +212,4 @@ class VarExportParser
         list($value) = $self->parseValue(true);
         return $value;
     }
-}
-
+}   
