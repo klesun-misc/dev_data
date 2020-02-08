@@ -384,7 +384,7 @@ Enter your text here:<br/>
     };
 
     const dynLogsToCmdRecs = (text, asHttp = false) => {
-        let logRecs = eval('[' + text.split('\n').join(',') + ']');
+        let logRecs = eval('[' + text.trim().split('\n').join(',') + ']');
         let extractOutput = (rs) => {
             let xmlDoc = new DOMParser().parseFromString(rs, 'text/xml');
             return [
