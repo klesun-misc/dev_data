@@ -29,3 +29,4 @@ export const Svg = (tagName, attributes = {}, children = []) =>
     Dom(tagName, attributes, children, {
         namespace: 'http://www.w3.org/2000/svg',
     });
+
