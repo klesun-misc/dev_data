@@ -281,7 +281,11 @@ Enter your text here:<br/>
                 } else if (next) {
                     destination = destination[key];
                 } else {
-                    destination[key] = v;
+                    // nah, too lazy to understand, better just JSON.stringify
+                    destination[key] = !destination[key] || JSON.stringify(destination[key]) === '{}' ? v :
+                        Array.isArray(destination[key])
+                            ? destination[key].concat([v])
+                            : [destination[key], v];
                 }
             }
         }
