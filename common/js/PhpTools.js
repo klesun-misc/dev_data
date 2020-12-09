@@ -1,5 +1,21 @@
 
 
+let findClosingParen = (printRText) => {
+    //return printRText.indexOf(')');
+    let depth = 0;
+    for (let i = 0; i < printRText.length; ++i) {
+        let ch = printRText[i];
+        if (ch === '(') {
+            ++depth;
+        } else if (ch === ')') {
+            --depth;
+        }
+        if (depth < 0) {
+            return i;
+        }
+    }
+    return -1;
+};
 
 /**
  * this function is very slow on large data sets (~20 seconds on 4MiB of text),
