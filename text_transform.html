@@ -1,7 +1,11 @@
 <head>
+    <title>Text Transform Tools</title>
+    <meta charset="utf8"/>
     <script src="./common/js/Tls.js"></script>
     <script src="./common/js/VarExportParser.js"></script>
-    <script src="./common/js/acejs/ace.js" type="text/javascript" charset="utf-8"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"
+            integrity="sha512-GZ1RIgZaSc8rnco/8CXfRdCpDxRCphenIiZ2ztLy3XQfCbQUSCuk8IudvNHxkRA3oUg6q0qejgN/qqyG1duv5Q=="
+            crossorigin="anonymous"></script>
 </head>
 
 <body>
@@ -54,14 +58,16 @@ Enter your text here:<br/>
     xmlToArrBtnEl.onclick = function(e) {
         let xml = editor.getValue().trim();
         editor.getSession().setMode({path: 'ace/mode/php', inline: true});
-        Tls.xmlToArr(xml).then =
-            (parsed) => editor.setValue(Tls.jsExport(parsed, null, getInlineLimit()));
+        Tls.xmlToArr(xml).then = (parsed) => editor.setValue(
+          Tls.jsExport(parsed, null, getInlineLimit())
+        );
     };
     buttonsCont.appendChild(xmlToArrBtnEl);
 
     if (hashData.dataset === 'varExportExample') {
         editor.setValue(varExportExample);
     }
+
 </script>
 </body>
 
