@@ -1,0 +1,54 @@
+<div id="output_html"></div>
+<div id="input_form">
+    <div>
+        <p>Copy english cells from the spreadsheet</p>
+        <img src="./copy_cells.png"/>
+    </div>
+    <div>
+        <textarea cols="40" rows="16" placeholder="Paste them here"></textarea>
+    </div>
+    <div style="display: flex; flex-direction: column">
+        <p>Translate this page to the desired language</p>
+        <img src="./translate_page.png"/>
+        <br/>
+        <img src="./choose_language.png"/>
+    </div>
+    <div>
+        <p>Hit Ctrl+A, Ctrl+C and paste into the respective spreadsheet column</p>
+        <img src="./hit_ctrl_a.png"/>
+    </div>
+    <div>Note, when it's a large amount of text, you should scroll through the output before copying, as chrome translates it continuously in portions</div>
+    <br clear="all"/>
+    <br clear="all"/>
+    <div>This tool is intended to help you get use of a higher quality google translation: unlike GOOGLETRANSLATE() function, this approach normally saves the html tags and supposedly produces actually meaningful output</div>
+</div>
+
+<script>
+    const textarea = document.querySelector("textarea");
+    const a = document.querySelector("a");
+    const input_form = document.getElementById("input_form");
+    const output_html = document.getElementById("output_html");
+    textarea.addEventListener('paste', function(e) {
+        var html = e.clipboardData.getData('text/html');
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(html, "text/html");
+        const sheets = doc.querySelector("google-sheets-html-origin");
+        if (sheets) {
+            output_html.innerHTML = sheets.outerHTML.trimEnd();
+            document.body.scrollTop = 0;
+            input_form.remove();
+        } else {
+            alert("No spreadsheet cells in your clipboard");
+        }
+        setTimeout(() => textarea.value = "", 4);
+    })
+</script>
+
+<style>
+    #input_form {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+    }
+</style>
