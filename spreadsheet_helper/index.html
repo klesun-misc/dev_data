@@ -1,4 +1,11 @@
-<div id="output_html"></div>
+<div id="output_html">
+    <table>
+        <tbody></tbody>
+    </table>
+</div>
+<div id="htmlify_translated_btn_section" style="display: none">
+    <button onclick="htmlifyTranslated()">Translated!</button>
+</div>
 <div id="input_form">
     <div>
         <p>Copy english cells from the spreadsheet</p>
@@ -26,22 +33,68 @@
 <script>
     const textarea = document.querySelector("textarea");
     const a = document.querySelector("a");
+    const tbody = document.querySelector("tbody");
     const input_form = document.getElementById("input_form");
     const output_html = document.getElementById("output_html");
+    const htmlify_translated_btn_section = document.getElementById("htmlify_translated_btn_section");
+
+    function escapeHtml(text) {
+        const tmpNode = document.createElement("div");
+        tmpNode.textContent = text;
+        return tmpNode.innerHTML;
+    }
+
+    /** translator wraps every text node in a double <font> - this function removes this <font> */
+    function unwrapFont(node) {
+        console.log("start unwrap: " + node.outerHTML);
+        const children = [...node.childNodes];
+        node.innerHTML = "";
+        for (const child of children) {
+            if (child.nodeName === "FONT") {
+                node.innerHTML += escapeHtml(child.textContent);
+            } else if (child.nodeName === "#text") {
+                node.innerHTML += escapeHtml(child.textContent);
+            } else {
+                unwrapFont(child);
+                console.log("node.innerHTML b " + node.outerHTML);
+                node.innerHTML += child.outerHTML;
+                console.log("node.innerHTML a " + node.outerHTML);
+            }
+        }
+    }
+
     textarea.addEventListener('paste', function(e) {
         var html = e.clipboardData.getData('text/html');
         var parser = new DOMParser();
         var doc = parser.parseFromString(html, "text/html");
-        const sheets = doc.querySelector("google-sheets-html-origin");
-        if (sheets) {
-            output_html.innerHTML = sheets.outerHTML.trimEnd();
+        const textCells = [...doc.querySelectorAll("google-sheets-html-origin tbody tr td:nth-child(1)")];
+        if (textCells.length > 0) {
+            for (const textCell of textCells) {
+                const tr = document.createElement("tr");
+                const td = document.createElement("td");
+                td.innerHTML = textCell.textContent;
+                tr.append(td);
+                tbody.append(tr);
+            }
             document.body.scrollTop = 0;
             input_form.remove();
+            htmlify_translated_btn_section.style.display = "block";
         } else {
             alert("No spreadsheet cells in your clipboard");
         }
         setTimeout(() => textarea.value = "", 4);
-    })
+    });
+    
+    window.htmlifyTranslated = () => {
+        tbody.classList.toggle("notranslate", true);
+        for (const tr of tbody.children) {
+            const td = tr.children[0];
+            unwrapFont(td);
+            td.textContent = td.innerHTML;
+            console.log(td.textContent);
+        }
+        htmlify_translated_btn_section.remove();
+    };
 </script>
 
 <style>
